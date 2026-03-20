@@ -19,7 +19,7 @@
         <description>Rename labels across content you can edit</description>
         <label key="bulk-label-change.link.label">Bulk Label Change</label>
         <link linkId="bulk-label-change-link">/plugins/bulklabel/change.action</link>
-        <condition class="com.atlassian.confluence.plugin.descriptor.web.conditions.LoggedInUserCondition"/>
+        <condition class="com.atlassian.confluence.plugin.descriptor.web.conditions.user.UserLoggedInCondition"/>
     </web-item>
 
     <!-- XWork actions (user-facing namespace) -->
