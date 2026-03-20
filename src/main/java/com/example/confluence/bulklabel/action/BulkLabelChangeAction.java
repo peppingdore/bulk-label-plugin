@@ -34,8 +34,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     //  Entry point – render the form
     // ------------------------------------------------------------------
 
-    @Override
-    public String execute() {
+    public String doDefault() {
         if (!isAuthenticated()) {
             addActionError("You must be logged in.");
             return ERROR;

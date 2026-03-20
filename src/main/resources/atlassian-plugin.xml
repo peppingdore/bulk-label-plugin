@@ -17,7 +17,7 @@
               section="system.browse"
               weight="100">
         <description>Rename labels across content you can edit</description>
-        <label key="bulk-label-change.link.label">Bulk Label Change</label>
+        <label>Bulk Label Change</label>
         <link linkId="bulk-label-change-link">/plugins/bulklabel/change.action</link>
         <condition class="com.atlassian.confluence.plugin.descriptor.web.conditions.user.UserLoggedInCondition"/>
     </web-item>
@@ -28,7 +28,8 @@
             <default-interceptor-ref name="defaultStack"/>
 
             <action name="change"
-                    class="com.example.confluence.bulklabel.action.BulkLabelChangeAction">
+                    class="com.example.confluence.bulklabel.action.BulkLabelChangeAction"
+                    method="doDefault">
                 <result name="input" type="velocity">/templates/bulk-label-change.vm</result>
                 <result name="success" type="velocity">/templates/bulk-label-change.vm</result>
                 <result name="error" type="velocity">/templates/bulk-label-change.vm</result>
