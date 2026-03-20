@@ -1,0 +1,67 @@
+<html>
+<head>
+    <title>Bulk Label Change</title>
+    <meta name="decorator" content="main"/>
+</head>
+<body>
+
+<div class="wiki-content" style="max-width:720px; margin:24px auto;">
+
+    <h1>Bulk Label Change</h1>
+    <p>
+        Rename a label across all pages and blog posts you have permission to edit.
+        Content you cannot edit will be left untouched.
+    </p>
+
+    #if($action.hasActionErrors())
+    <div class="aui-message aui-message-error">
+        #foreach($error in $action.actionErrors)
+            <p>$error</p>
+        #end
+    </div>
+    #end
+
+    #if($action.hasActionMessages())
+    <div class="aui-message aui-message-info">
+        #foreach($msg in $action.actionMessages)
+            <p>$msg</p>
+        #end
+    </div>
+    #end
+
+    <form class="aui" method="POST">
+        <fieldset>
+            <div class="field-group">
+                <label for="sourceLabel">Source label <span class="aui-icon icon-required">(required)</span></label>
+                <input class="text long-field" type="text" id="sourceLabel" name="sourceLabel"
+                       value="$!{sourceLabel}" placeholder="old-label" required
+                       autocomplete="off"/>
+                <div class="description">The label you want to replace.</div>
+            </div>
+
+            <div class="field-group">
+                <label for="targetLabel">Target label <span class="aui-icon icon-required">(required)</span></label>
+                <input class="text long-field" type="text" id="targetLabel" name="targetLabel"
+                       value="$!{targetLabel}" placeholder="new-label" required
+                       autocomplete="off"/>
+                <div class="description">The replacement label.</div>
+            </div>
+        </fieldset>
+
+        <div class="buttons-container">
+            <div class="buttons">
+                <button class="aui-button" type="submit" formaction="preview.action">
+                    Preview
+                </button>
+                <button class="aui-button aui-button-primary" type="submit" formaction="execute.action"
+                        onclick="return confirm('This will rename the label on all matching content you can edit. Continue?');">
+                    Apply
+                </button>
+            </div>
+        </div>
+    </form>
+
+</div>
+
+</body>
+</html>

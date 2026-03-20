@@ -1,0 +1,55 @@
+<atlassian-plugin key="com.example.confluence.bulk-label-change"
+                  name="Bulk Label Change"
+                  plugins-version="2">
+
+    <plugin-info>
+        <description>Rename labels in bulk across Confluence content you can edit.</description>
+        <version>1.0.0</version>
+        <vendor name="Example" url="https://example.com"/>
+        <param name="atlassian-data-center-status">compatible</param>
+        <param name="atlassian-data-center-compatible">true</param>
+        <param name="plugin-icon">images/pluginIcon.png</param>
+    </plugin-info>
+
+    <!-- Browse-menu link visible to any logged-in user -->
+    <web-item key="bulk-label-change-link"
+              name="Bulk Label Change"
+              section="system.browse"
+              weight="100">
+        <description>Rename labels across content you can edit</description>
+        <label key="bulk-label-change.link.label">Bulk Label Change</label>
+        <link linkId="bulk-label-change-link">/plugins/bulklabel/change.action</link>
+        <condition class="com.atlassian.confluence.plugin.descriptor.web.conditions.LoggedInUserCondition"/>
+    </web-item>
+
+    <!-- XWork actions (user-facing namespace) -->
+    <xwork key="bulk-label-change-actions" name="Bulk Label Change Actions">
+        <package name="bulk-label-change" extends="default" namespace="/plugins/bulklabel">
+            <default-interceptor-ref name="defaultStack"/>
+
+            <action name="change"
+                    class="com.example.confluence.bulklabel.action.BulkLabelChangeAction">
+                <result name="input" type="velocity">/templates/bulk-label-change.vm</result>
+                <result name="success" type="velocity">/templates/bulk-label-change.vm</result>
+                <result name="error" type="velocity">/templates/bulk-label-change.vm</result>
+            </action>
+
+            <action name="preview"
+                    class="com.example.confluence.bulklabel.action.BulkLabelChangeAction"
+                    method="doPreview">
+                <result name="input" type="velocity">/templates/bulk-label-change.vm</result>
+                <result name="success" type="velocity">/templates/bulk-label-change-preview.vm</result>
+                <result name="error" type="velocity">/templates/bulk-label-change.vm</result>
+            </action>
+
+            <action name="execute"
+                    class="com.example.confluence.bulklabel.action.BulkLabelChangeAction"
+                    method="doExecute">
+                <result name="input" type="velocity">/templates/bulk-label-change.vm</result>
+                <result name="success" type="velocity">/templates/bulk-label-change-results.vm</result>
+                <result name="error" type="velocity">/templates/bulk-label-change.vm</result>
+            </action>
+        </package>
+    </xwork>
+
+</atlassian-plugin>

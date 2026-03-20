@@ -1,0 +1,71 @@
+<html>
+<head>
+    <title>Bulk Label Change – Results</title>
+    <meta name="decorator" content="main"/>
+</head>
+<body>
+
+<div class="wiki-content" style="max-width:720px; margin:24px auto;">
+
+    <h1>Bulk Label Change – Results</h1>
+
+    #if($changeResult)
+
+        <div class="aui-message aui-message-success">
+            <p>
+                Renamed label on <strong>$changeResult.successCount</strong> item(s):
+                <span class="aui-lozenge">$!{sourceLabel}</span> →
+                <span class="aui-lozenge aui-lozenge-success">$!{targetLabel}</span>
+            </p>
+        </div>
+
+        #if($changeResult.skippedCount > 0)
+        <div class="aui-message aui-message-warning">
+            <p>
+                <strong>$changeResult.skippedCount</strong> item(s) were skipped
+                because you don't have edit permission on them.
+            </p>
+        </div>
+        #end
+
+        #if($changeResult.failCount > 0)
+        <div class="aui-message aui-message-error">
+            <p>
+                <strong>$changeResult.failCount</strong> item(s) failed to update.
+                A Confluence administrator can check the application log for details.
+            </p>
+        </div>
+        #end
+
+        #if(!$changeResult.changedContent.isEmpty())
+        <h2>Changed content</h2>
+        <table class="aui">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Space</th>
+                    <th>Title</th>
+                </tr>
+            </thead>
+            <tbody>
+                #foreach($item in $changeResult.changedContent)
+                <tr>
+                    <td>$item.type</td>
+                    <td>$!{item.spaceName} <span class="smalltext">($!{item.spaceKey})</span></td>
+                    <td><a href="$req.contextPath/pages/viewpage.action?pageId=$item.id">$item.title</a></td>
+                </tr>
+                #end
+            </tbody>
+        </table>
+        #end
+
+    #end
+
+    <div class="buttons-container" style="margin-top:16px;">
+        <a class="aui-button" href="change.action">Start another</a>
+    </div>
+
+</div>
+
+</body>
+</html>
