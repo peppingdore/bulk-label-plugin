@@ -1,4 +1,5 @@
 target/
+atlassian-plugin-sdk-tgz
 *.iml
 .idea/
 .classpath
