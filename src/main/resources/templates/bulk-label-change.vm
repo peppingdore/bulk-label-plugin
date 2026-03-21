@@ -59,14 +59,14 @@
                         size="8" #if($action.allSpaces) disabled #end
                         style="margin-top:8px;">
                     #if($availableSpaces)
-                    #foreach($space in $availableSpaces)
-                        <option value="$space.key"
+                    #foreach($sp in $availableSpaces)
+                        <option value="$sp.key"
                             #if($action.spaceKeys)
                                 #foreach($sk in $action.spaceKeys)
-                                    #if($sk == $space.key) selected #end
+                                    #if($sk == $sp.key) selected #end
                                 #end
                             #end
-                        >$space.name ($space.key)</option>
+                        >$sp.name ($sp.key)</option>
                     #end
                     #end
                 </select>
