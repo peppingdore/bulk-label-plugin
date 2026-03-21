@@ -12,7 +12,7 @@ import com.atlassian.confluence.security.PermissionManager;
 import com.atlassian.confluence.spaces.Space;
 import com.atlassian.confluence.spaces.SpaceManager;
 import com.atlassian.confluence.user.ConfluenceUser;
-import com.atlassian.plugin.spring.scanner.annotation.imports.ConfluenceImport;
+import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -44,9 +44,9 @@ public class BulkLabelChangeService {
 
     @Inject
     public BulkLabelChangeService(
-            @ConfluenceImport LabelManager labelManager,
-            @ConfluenceImport PermissionManager permissionManager,
-            @ConfluenceImport SpaceManager spaceManager) {
+            @ComponentImport LabelManager labelManager,
+            @ComponentImport PermissionManager permissionManager,
+            @ComponentImport SpaceManager spaceManager) {
         this.labelManager = labelManager;
         this.permissionManager = permissionManager;
         this.spaceManager = spaceManager;
