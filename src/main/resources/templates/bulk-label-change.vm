@@ -30,7 +30,7 @@
     #end
 
     <form class="aui" method="POST">
-        <input type="hidden" name="atl_token" value="$atl_token"/>
+        #form_xsrfToken()
         <fieldset>
             <div class="field-group">
                 <label for="sourceLabel">Source label <span class="aui-icon icon-required">(required)</span></label>
