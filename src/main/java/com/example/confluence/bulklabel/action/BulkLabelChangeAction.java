@@ -29,7 +29,6 @@ import java.util.Set;
  * All data exposed to Velocity uses Map&lt;String,Object&gt; because
  * Confluence 9's Velocity allowlist blocks access to custom plugin classes.
  */
-@RequireSecurityToken(false)
 public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
     private static final Logger log = LoggerFactory.getLogger(BulkLabelChangeAction.class);
@@ -51,6 +50,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     //  Entry point – render the form
     // ------------------------------------------------------------------
 
+    @RequireSecurityToken(false)
     public String doDefault() {
         if (!isAuthenticated()) {
             addActionError("You must be logged in.");
@@ -64,6 +64,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     //  Preview
     // ------------------------------------------------------------------
 
+    @RequireSecurityToken(false)
     public String doPreview() {
         if (!isAuthenticated()) {
             addActionError("You must be logged in.");
@@ -92,6 +93,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     //  Execute
     // ------------------------------------------------------------------
 
+    @RequireSecurityToken(false)
     public String doExecute() {
         if (!isAuthenticated()) {
             addActionError("You must be logged in.");
