@@ -11,6 +11,8 @@ import com.atlassian.confluence.security.Permission;
 import com.atlassian.confluence.spaces.Space;
 import com.atlassian.confluence.spaces.SpaceManager;
 import com.atlassian.confluence.user.ConfluenceUser;
+import com.atlassian.xwork.ParameterSafe;
+import com.atlassian.xwork.RequireSecurityToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +29,7 @@ import java.util.Set;
  * All data exposed to Velocity uses Map&lt;String,Object&gt; because
  * Confluence 9's Velocity allowlist blocks access to custom plugin classes.
  */
+@RequireSecurityToken(false)
 public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
     private static final Logger log = LoggerFactory.getLogger(BulkLabelChangeAction.class);
@@ -311,15 +314,19 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     // ------------------------------------------------------------------
 
     public String getSourceLabel()                          { return sourceLabel; }
+    @ParameterSafe
     public void setSourceLabel(String s)                    { this.sourceLabel = s; }
 
     public String getTargetLabel()                          { return targetLabel; }
+    @ParameterSafe
     public void setTargetLabel(String s)                    { this.targetLabel = s; }
 
     public String[] getSpaceKeys()                          { return spaceKeys; }
+    @ParameterSafe
     public void setSpaceKeys(String[] s)                    { this.spaceKeys = s; }
 
     public boolean isAllSpaces()                            { return allSpaces; }
+    @ParameterSafe
     public void setAllSpaces(boolean b)                     { this.allSpaces = b; }
 
     public List<Map<String, Object>> getAvailableSpaces()   { return availableSpaces; }
