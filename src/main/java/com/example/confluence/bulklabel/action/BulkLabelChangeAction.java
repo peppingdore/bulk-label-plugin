@@ -5,19 +5,14 @@ import com.atlassian.confluence.user.ConfluenceUser;
 import com.example.confluence.bulklabel.service.BulkLabelChangeService;
 import com.example.confluence.bulklabel.service.BulkLabelChangeService.ChangeResult;
 import com.example.confluence.bulklabel.service.BulkLabelChangeService.PreviewResult;
+import com.example.confluence.bulklabel.service.BulkLabelChangeService.SpaceInfo;
 
-/**
- * User-facing action that drives the bulk-label-change UI.
- *
- * Any authenticated user can access it. The service layer enforces
- * per-content edit permissions, so a user will only ever modify
- * labels on content they are allowed to edit.
- *
- * Flows:
- *   GET  change.action   → show form
- *   POST preview.action  → dry-run preview (filtered by user perms)
- *   POST execute.action  → apply the rename (filtered by user perms)
- */
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
     private BulkLabelChangeService bulkLabelChangeService;
@@ -25,10 +20,15 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     // Form fields
     private String sourceLabel;
     private String targetLabel;
+    private String[] spaceKeys;
+    private boolean allSpaces = true;
 
     // Results
     private PreviewResult previewResult;
     private ChangeResult changeResult;
+
+    // Space list for the form
+    private List<SpaceInfo> availableSpaces;
 
     // ------------------------------------------------------------------
     //  Entry point – render the form
@@ -39,11 +39,12 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
             addActionError("You must be logged in.");
             return ERROR;
         }
+        loadSpaces();
         return INPUT;
     }
 
     // ------------------------------------------------------------------
-    //  Preview – show what the current user would affect
+    //  Preview
     // ------------------------------------------------------------------
 
     public String doPreview() {
@@ -53,11 +54,13 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         }
         if (sourceLabel == null || sourceLabel.isBlank()) {
             addActionError("Please enter a source label.");
+            loadSpaces();
             return ERROR;
         }
 
         ConfluenceUser user = getAuthenticatedUser();
-        previewResult = bulkLabelChangeService.preview(sourceLabel, user);
+        Set<String> filter = resolveSpaceFilter();
+        previewResult = bulkLabelChangeService.preview(sourceLabel, user, filter);
 
         if (previewResult.getEditableCount() == 0 && previewResult.getSkippedCount() == 0) {
             addActionMessage("No content found with label \u201c" + sourceLabel + "\u201d.");
@@ -67,7 +70,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     }
 
     // ------------------------------------------------------------------
-    //  Execute – apply the rename
+    //  Execute
     // ------------------------------------------------------------------
 
     public String doExecute() {
@@ -77,18 +80,22 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         }
         if (sourceLabel == null || sourceLabel.isBlank()) {
             addActionError("Please enter a source label.");
+            loadSpaces();
             return ERROR;
         }
         if (targetLabel == null || targetLabel.isBlank()) {
             addActionError("Please enter a target label.");
+            loadSpaces();
             return ERROR;
         }
 
         ConfluenceUser user = getAuthenticatedUser();
-        changeResult = bulkLabelChangeService.execute(sourceLabel, targetLabel, user);
+        Set<String> filter = resolveSpaceFilter();
+        changeResult = bulkLabelChangeService.execute(sourceLabel, targetLabel, user, filter);
 
         if (changeResult.hasError()) {
             addActionError(changeResult.getErrorMessage());
+            loadSpaces();
             return ERROR;
         }
 
@@ -103,6 +110,17 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         return getAuthenticatedUser() != null;
     }
 
+    private void loadSpaces() {
+        availableSpaces = bulkLabelChangeService.getAllSpaces();
+    }
+
+    private Set<String> resolveSpaceFilter() {
+        if (allSpaces || spaceKeys == null || spaceKeys.length == 0) {
+            return Collections.emptySet(); // empty = all spaces
+        }
+        return new LinkedHashSet<>(Arrays.asList(spaceKeys));
+    }
+
     // ------------------------------------------------------------------
     //  Getters / setters
     // ------------------------------------------------------------------
@@ -113,6 +131,13 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     public String getTargetLabel()                 { return targetLabel; }
     public void setTargetLabel(String s)           { this.targetLabel = s; }
 
+    public String[] getSpaceKeys()                 { return spaceKeys; }
+    public void setSpaceKeys(String[] s)           { this.spaceKeys = s; }
+
+    public boolean isAllSpaces()                   { return allSpaces; }
+    public void setAllSpaces(boolean b)            { this.allSpaces = b; }
+
+    public List<SpaceInfo> getAvailableSpaces()    { return availableSpaces; }
     public PreviewResult getPreviewResult()        { return previewResult; }
     public ChangeResult getChangeResult()          { return changeResult; }
 

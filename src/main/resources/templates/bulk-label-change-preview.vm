@@ -57,6 +57,12 @@
                     <form class="aui" method="POST" action="execute.action" style="display:inline">
                         <input type="hidden" name="sourceLabel" value="$!{sourceLabel}"/>
                         <input type="hidden" name="targetLabel" value="$!{targetLabel}"/>
+                        <input type="hidden" name="allSpaces" value="$!{action.allSpaces}"/>
+                        #if($action.spaceKeys)
+                            #foreach($sk in $action.spaceKeys)
+                                <input type="hidden" name="spaceKeys" value="$sk"/>
+                            #end
+                        #end
                         <button class="aui-button aui-button-primary" type="submit"
                                 onclick="return confirm('Rename the label on these $previewResult.editableCount item(s)?');">
                             Apply Change

@@ -46,7 +46,36 @@
                        autocomplete="off"/>
                 <div class="description">The replacement label.</div>
             </div>
+
+            <div class="field-group">
+                <label for="allSpaces">Spaces</label>
+                <div>
+                    <input type="checkbox" id="allSpaces" name="allSpaces" value="true"
+                           #if($action.allSpaces) checked #end
+                           onchange="document.getElementById('spaceSelect').disabled = this.checked;"/>
+                    <label for="allSpaces" style="display:inline; font-weight:normal;">All spaces</label>
+                </div>
+                <select class="multi-select long-field" id="spaceSelect" name="spaceKeys" multiple
+                        size="8" #if($action.allSpaces) disabled #end
+                        style="margin-top:8px;">
+                    #if($availableSpaces)
+                    #foreach($space in $availableSpaces)
+                        <option value="$space.key"
+                            #if($action.spaceKeys)
+                                #foreach($sk in $action.spaceKeys)
+                                    #if($sk == $space.key) selected #end
+                                #end
+                            #end
+                        >$space.name ($space.key)</option>
+                    #end
+                    #end
+                </select>
+                <div class="description">Select specific spaces or apply to all. Hold Ctrl/Cmd to select multiple.</div>
+            </div>
         </fieldset>
+
+        ## When allSpaces is unchecked, no value is sent — ensure we get false
+        <input type="hidden" name="allSpaces" value="false"/>
 
         <div class="buttons-container">
             <div class="buttons">

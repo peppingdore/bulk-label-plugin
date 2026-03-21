@@ -9,6 +9,8 @@ import com.atlassian.confluence.pages.BlogPost;
 import com.atlassian.confluence.pages.Page;
 import com.atlassian.confluence.security.Permission;
 import com.atlassian.confluence.security.PermissionManager;
+import com.atlassian.confluence.spaces.Space;
+import com.atlassian.confluence.spaces.SpaceManager;
 import com.atlassian.confluence.user.ConfluenceUser;
 import com.atlassian.plugin.spring.scanner.annotation.imports.ConfluenceImport;
 import org.slf4j.Logger;
@@ -19,6 +21,7 @@ import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Handles the bulk relabelling operation, scoped to content the
@@ -37,20 +40,37 @@ public class BulkLabelChangeService {
 
     private final LabelManager labelManager;
     private final PermissionManager permissionManager;
+    private final SpaceManager spaceManager;
 
     @Inject
     public BulkLabelChangeService(
             @ConfluenceImport LabelManager labelManager,
-            @ConfluenceImport PermissionManager permissionManager) {
+            @ConfluenceImport PermissionManager permissionManager,
+            @ConfluenceImport SpaceManager spaceManager) {
         this.labelManager = labelManager;
         this.permissionManager = permissionManager;
+        this.spaceManager = spaceManager;
+    }
+
+    // ---------------------------------------------------------------
+    //  Space listing
+    // ---------------------------------------------------------------
+
+    public List<SpaceInfo> getAllSpaces() {
+        List<Space> spaces = spaceManager.getAllSpaces();
+        List<SpaceInfo> result = new ArrayList<>();
+        for (Space s : spaces) {
+            result.add(new SpaceInfo(s.getKey(), s.getName()));
+        }
+        result.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        return result;
     }
 
     // ---------------------------------------------------------------
     //  Preview – returns affected content the user CAN edit
     // ---------------------------------------------------------------
 
-    public PreviewResult preview(String sourceLabel, ConfluenceUser user) {
+    public PreviewResult preview(String sourceLabel, ConfluenceUser user, Set<String> spaceKeys) {
         if (sourceLabel == null || sourceLabel.isBlank()) {
             return new PreviewResult(Collections.emptyList(), 0);
         }
@@ -62,6 +82,9 @@ public class BulkLabelChangeService {
         int skippedCount = 0;
 
         for (ContentEntityObject item : allItems) {
+            if (!matchesSpaceFilter(item, spaceKeys)) {
+                continue;
+            }
             if (userCanEdit(item, user)) {
                 permitted.add(AffectedContent.from(item));
             } else {
@@ -76,7 +99,7 @@ public class BulkLabelChangeService {
     //  Execute – rename sourceLabel → targetLabel where user can edit
     // ---------------------------------------------------------------
 
-    public ChangeResult execute(String sourceLabel, String targetLabel, ConfluenceUser user) {
+    public ChangeResult execute(String sourceLabel, String targetLabel, ConfluenceUser user, Set<String> spaceKeys) {
         String src = normalise(sourceLabel);
         String tgt = normalise(targetLabel);
 
@@ -94,6 +117,9 @@ public class BulkLabelChangeService {
         List<AffectedContent> changed = new ArrayList<>();
 
         for (ContentEntityObject item : allItems) {
+            if (!matchesSpaceFilter(item, spaceKeys)) {
+                continue;
+            }
             // ---- Permission gate ----
             if (!userCanEdit(item, user)) {
                 skippedCount++;
@@ -127,6 +153,19 @@ public class BulkLabelChangeService {
     // ---------------------------------------------------------------
     //  Permission check
     // ---------------------------------------------------------------
+
+    private boolean matchesSpaceFilter(ContentEntityObject item, Set<String> spaceKeys) {
+        if (spaceKeys == null || spaceKeys.isEmpty()) {
+            return true; // no filter = all spaces
+        }
+        String key = null;
+        if (item instanceof Page p) {
+            key = p.getSpaceKey();
+        } else if (item instanceof BlogPost bp) {
+            key = bp.getSpaceKey();
+        }
+        return key != null && spaceKeys.contains(key);
+    }
 
     private boolean userCanEdit(ContentEntityObject content, ConfluenceUser user) {
         if (user == null) {
@@ -251,5 +290,18 @@ public class BulkLabelChangeService {
         public boolean hasError()                        { return errorMessage != null; }
         public List<AffectedContent> getChangedContent() { return changedContent; }
         public void setChangedContent(List<AffectedContent> c) { this.changedContent = c; }
+    }
+
+    public static class SpaceInfo {
+        private final String key;
+        private final String name;
+
+        public SpaceInfo(String key, String name) {
+            this.key = key;
+            this.name = name;
+        }
+
+        public String getKey()  { return key; }
+        public String getName() { return name; }
     }
 }
