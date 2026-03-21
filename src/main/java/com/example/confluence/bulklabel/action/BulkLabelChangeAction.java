@@ -4,7 +4,6 @@ import com.atlassian.confluence.core.ConfluenceActionSupport;
 import com.atlassian.confluence.core.ContentEntityObject;
 import com.atlassian.confluence.core.PartialList;
 import com.atlassian.confluence.labels.Label;
-import com.atlassian.confluence.labels.LabelManager;
 import com.atlassian.confluence.labels.Namespace;
 import com.atlassian.confluence.pages.BlogPost;
 import com.atlassian.confluence.pages.Page;
@@ -18,10 +17,16 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+/**
+ * All data exposed to Velocity uses Map&lt;String,Object&gt; because
+ * Confluence 9's Velocity allowlist blocks access to custom plugin classes.
+ */
 public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
     private static final Logger log = LoggerFactory.getLogger(BulkLabelChangeAction.class);
@@ -34,12 +39,10 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     private String[] spaceKeys;
     private boolean allSpaces = true;
 
-    // Results
-    private PreviewResult previewResult;
-    private ChangeResult changeResult;
-
-    // Space list for the form
-    private List<SpaceInfo> availableSpaces;
+    // Results exposed to Velocity (all Maps, no custom DTOs)
+    private Map<String, Object> previewResult;
+    private Map<String, Object> changeResult;
+    private List<Map<String, Object>> availableSpaces;
 
     // ------------------------------------------------------------------
     //  Entry point – render the form
@@ -71,9 +74,11 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
         ConfluenceUser user = getAuthenticatedUser();
         Set<String> filter = resolveSpaceFilter();
-        previewResult = preview(sourceLabel, user, filter);
+        previewResult = doPreviewWork(sourceLabel, user, filter);
 
-        if (previewResult.getEditableCount() == 0 && previewResult.getSkippedCount() == 0) {
+        int editableCount = (int) previewResult.get("editableCount");
+        int skippedCount = (int) previewResult.get("skippedCount");
+        if (editableCount == 0 && skippedCount == 0) {
             addActionMessage("No content found with label \u201c" + sourceLabel + "\u201d.");
         }
 
@@ -102,10 +107,11 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
         ConfluenceUser user = getAuthenticatedUser();
         Set<String> filter = resolveSpaceFilter();
-        changeResult = execute(sourceLabel, targetLabel, user, filter);
+        changeResult = doExecuteWork(sourceLabel, targetLabel, user, filter);
 
-        if (changeResult.hasError()) {
-            addActionError(changeResult.getErrorMessage());
+        String errorMessage = (String) changeResult.get("errorMessage");
+        if (errorMessage != null) {
+            addActionError(errorMessage);
             loadSpaces();
             return ERROR;
         }
@@ -114,14 +120,14 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     }
 
     // ------------------------------------------------------------------
-    //  Core logic (uses managers from ConfluenceActionSupport)
+    //  Core logic
     // ------------------------------------------------------------------
 
-    private PreviewResult preview(String srcLabel, ConfluenceUser user, Set<String> spaces) {
+    private Map<String, Object> doPreviewWork(String srcLabel, ConfluenceUser user, Set<String> spaces) {
         String normalised = normalise(srcLabel);
         List<ContentEntityObject> allItems = findAllByLabel(normalised);
 
-        List<AffectedContent> permitted = new ArrayList<>();
+        List<Map<String, Object>> permitted = new ArrayList<>();
         int skippedCount = 0;
 
         for (ContentEntityObject item : allItems) {
@@ -129,33 +135,37 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
                 continue;
             }
             if (userCanEdit(item, user)) {
-                permitted.add(AffectedContent.from(item));
+                permitted.add(contentToMap(item));
             } else {
                 skippedCount++;
             }
         }
 
-        return new PreviewResult(permitted, skippedCount);
+        Map<String, Object> result = new HashMap<>();
+        result.put("items", permitted);
+        result.put("skippedCount", skippedCount);
+        result.put("editableCount", permitted.size());
+        result.put("totalCount", permitted.size() + skippedCount);
+        return result;
     }
 
-    private ChangeResult execute(String srcLabel, String tgtLabel, ConfluenceUser user, Set<String> spaces) {
+    private Map<String, Object> doExecuteWork(String srcLabel, String tgtLabel, ConfluenceUser user, Set<String> spaces) {
         String src = normalise(srcLabel);
         String tgt = normalise(tgtLabel);
 
         if (src.isEmpty() || tgt.isEmpty()) {
-            return ChangeResult.error("Source and target labels must not be empty.");
+            return errorResult("Source and target labels must not be empty.");
         }
         if (src.equals(tgt)) {
-            return ChangeResult.error("Source and target labels are identical.");
+            return errorResult("Source and target labels are identical.");
         }
 
         List<ContentEntityObject> allItems = findAllByLabel(src);
         int successCount = 0;
         int failCount = 0;
         int skippedCount = 0;
-        List<AffectedContent> changed = new ArrayList<>();
+        List<Map<String, Object>> changed = new ArrayList<>();
 
-        LabelManager lm = labelManager;
         for (ContentEntityObject item : allItems) {
             if (!matchesSpaceFilter(item, spaces)) {
                 continue;
@@ -168,20 +178,58 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
             try {
                 Label oldLabel = findLabelOnItem(item, src);
                 if (oldLabel != null) {
-                    lm.removeLabel(item, oldLabel);
+                    labelManager.removeLabel(item, oldLabel);
                 }
-                lm.addLabel(item, new Label(tgt, Namespace.GLOBAL));
+                labelManager.addLabel(item, new Label(tgt, Namespace.GLOBAL));
                 successCount++;
-                changed.add(AffectedContent.from(item));
+                changed.add(contentToMap(item));
             } catch (Exception e) {
                 failCount++;
                 log.error("Failed to relabel content id={}: {}", item.getId(), e.getMessage(), e);
             }
         }
 
-        ChangeResult result = new ChangeResult(successCount, failCount, skippedCount, null);
-        result.setChangedContent(changed);
+        Map<String, Object> result = new HashMap<>();
+        result.put("successCount", successCount);
+        result.put("failCount", failCount);
+        result.put("skippedCount", skippedCount);
+        result.put("errorMessage", null);
+        result.put("changedContent", changed);
         return result;
+    }
+
+    private Map<String, Object> errorResult(String message) {
+        Map<String, Object> result = new HashMap<>();
+        result.put("successCount", 0);
+        result.put("failCount", 0);
+        result.put("skippedCount", 0);
+        result.put("errorMessage", message);
+        result.put("changedContent", Collections.emptyList());
+        return result;
+    }
+
+    private Map<String, Object> contentToMap(ContentEntityObject content) {
+        Map<String, Object> map = new HashMap<>();
+        if (content instanceof Page p) {
+            map.put("id", p.getId());
+            map.put("title", p.getTitle());
+            map.put("type", "Page");
+            map.put("spaceKey", p.getSpaceKey());
+            map.put("spaceName", p.getSpace() != null ? p.getSpace().getName() : p.getSpaceKey());
+        } else if (content instanceof BlogPost bp) {
+            map.put("id", bp.getId());
+            map.put("title", bp.getTitle());
+            map.put("type", "Blog Post");
+            map.put("spaceKey", bp.getSpaceKey());
+            map.put("spaceName", bp.getSpace() != null ? bp.getSpace().getName() : bp.getSpaceKey());
+        } else {
+            map.put("id", content.getId());
+            map.put("title", content.getTitle());
+            map.put("type", content.getType());
+            map.put("spaceKey", "");
+            map.put("spaceName", "");
+        }
+        return map;
     }
 
     // ------------------------------------------------------------------
@@ -200,9 +248,12 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         List<Space> spaces = spaceManager.getAllSpaces();
         availableSpaces = new ArrayList<>();
         for (Space s : spaces) {
-            availableSpaces.add(new SpaceInfo(s.getKey(), s.getName()));
+            Map<String, Object> map = new HashMap<>();
+            map.put("key", s.getKey());
+            map.put("name", s.getName());
+            availableSpaces.add(map);
         }
-        availableSpaces.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        availableSpaces.sort((a, b) -> ((String) a.get("name")).compareToIgnoreCase((String) b.get("name")));
     }
 
     private Set<String> resolveSpaceFilter() {
@@ -256,119 +307,22 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     }
 
     // ------------------------------------------------------------------
-    //  Getters / setters
+    //  Getters / setters for Velocity and form binding
     // ------------------------------------------------------------------
 
-    public String getSourceLabel()                 { return sourceLabel; }
-    public void setSourceLabel(String s)           { this.sourceLabel = s; }
+    public String getSourceLabel()                          { return sourceLabel; }
+    public void setSourceLabel(String s)                    { this.sourceLabel = s; }
 
-    public String getTargetLabel()                 { return targetLabel; }
-    public void setTargetLabel(String s)           { this.targetLabel = s; }
+    public String getTargetLabel()                          { return targetLabel; }
+    public void setTargetLabel(String s)                    { this.targetLabel = s; }
 
-    public String[] getSpaceKeys()                 { return spaceKeys; }
-    public void setSpaceKeys(String[] s)           { this.spaceKeys = s; }
+    public String[] getSpaceKeys()                          { return spaceKeys; }
+    public void setSpaceKeys(String[] s)                    { this.spaceKeys = s; }
 
-    public boolean isAllSpaces()                   { return allSpaces; }
-    public void setAllSpaces(boolean b)            { this.allSpaces = b; }
+    public boolean isAllSpaces()                            { return allSpaces; }
+    public void setAllSpaces(boolean b)                     { this.allSpaces = b; }
 
-    public List<SpaceInfo> getAvailableSpaces()    { return availableSpaces; }
-    public PreviewResult getPreviewResult()        { return previewResult; }
-    public ChangeResult getChangeResult()          { return changeResult; }
-
-    // ------------------------------------------------------------------
-    //  DTOs
-    // ------------------------------------------------------------------
-
-    public static class SpaceInfo {
-        private final String key;
-        private final String name;
-
-        public SpaceInfo(String key, String name) {
-            this.key = key;
-            this.name = name;
-        }
-
-        public String getKey()  { return key; }
-        public String getName() { return name; }
-    }
-
-    public static class AffectedContent {
-        private long id;
-        private String title;
-        private String type;
-        private String spaceKey;
-        private String spaceName;
-
-        public static AffectedContent from(ContentEntityObject content) {
-            AffectedContent ac = new AffectedContent();
-            if (content instanceof Page p) {
-                ac.id = p.getId();
-                ac.title = p.getTitle();
-                ac.type = "Page";
-                ac.spaceKey = p.getSpaceKey();
-                ac.spaceName = p.getSpace() != null ? p.getSpace().getName() : p.getSpaceKey();
-            } else if (content instanceof BlogPost bp) {
-                ac.id = bp.getId();
-                ac.title = bp.getTitle();
-                ac.type = "Blog Post";
-                ac.spaceKey = bp.getSpaceKey();
-                ac.spaceName = bp.getSpace() != null ? bp.getSpace().getName() : bp.getSpaceKey();
-            } else {
-                ac.id = content.getId();
-                ac.title = content.getTitle();
-                ac.type = content.getType();
-                ac.spaceKey = "";
-                ac.spaceName = "";
-            }
-            return ac;
-        }
-
-        public long getId()          { return id; }
-        public String getTitle()     { return title; }
-        public String getType()      { return type; }
-        public String getSpaceKey()  { return spaceKey; }
-        public String getSpaceName() { return spaceName; }
-    }
-
-    public static class PreviewResult {
-        private final List<AffectedContent> items;
-        private final int skippedCount;
-
-        public PreviewResult(List<AffectedContent> items, int skippedCount) {
-            this.items = items;
-            this.skippedCount = skippedCount;
-        }
-
-        public List<AffectedContent> getItems() { return items; }
-        public int getSkippedCount()             { return skippedCount; }
-        public int getEditableCount()            { return items.size(); }
-        public int getTotalCount()               { return items.size() + skippedCount; }
-    }
-
-    public static class ChangeResult {
-        private final int successCount;
-        private final int failCount;
-        private final int skippedCount;
-        private final String errorMessage;
-        private List<AffectedContent> changedContent = Collections.emptyList();
-
-        public ChangeResult(int successCount, int failCount, int skippedCount, String errorMessage) {
-            this.successCount = successCount;
-            this.failCount = failCount;
-            this.skippedCount = skippedCount;
-            this.errorMessage = errorMessage;
-        }
-
-        public static ChangeResult error(String message) {
-            return new ChangeResult(0, 0, 0, message);
-        }
-
-        public int getSuccessCount()                     { return successCount; }
-        public int getFailCount()                        { return failCount; }
-        public int getSkippedCount()                     { return skippedCount; }
-        public String getErrorMessage()                  { return errorMessage; }
-        public boolean hasError()                        { return errorMessage != null; }
-        public List<AffectedContent> getChangedContent() { return changedContent; }
-        public void setChangedContent(List<AffectedContent> c) { this.changedContent = c; }
-    }
+    public List<Map<String, Object>> getAvailableSpaces()   { return availableSpaces; }
+    public Map<String, Object> getPreviewResult()           { return previewResult; }
+    public Map<String, Object> getChangeResult()            { return changeResult; }
 }
