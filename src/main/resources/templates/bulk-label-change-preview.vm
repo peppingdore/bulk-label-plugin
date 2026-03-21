@@ -55,6 +55,7 @@
             <div class="buttons-container" style="margin-top:16px;">
                 <div class="buttons">
                     <form class="aui" method="POST" action="execute.action" style="display:inline">
+                        <input type="hidden" name="atl_token" value="$atl_token"/>
                         <input type="hidden" name="sourceLabel" value="$!{sourceLabel}"/>
                         <input type="hidden" name="targetLabel" value="$!{targetLabel}"/>
                         <input type="hidden" name="allSpaces" value="$!{action.allSpaces}"/>

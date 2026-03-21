@@ -32,3 +32,4 @@ bash /root/install-plugin.sh   # installs via UPM REST API
 - Plugin-scoped Spring beans (`@Component`) are NOT visible to XWork setter injection
 - Use managers from `ConfluenceActionSupport` directly (protected fields: `labelManager`, `permissionManager`; setter-injected: `spaceManager`)
 - `$space` is reserved in Confluence Velocity context — do not use as a loop variable
+- Confluence 9 Velocity allowlist blocks method calls on custom plugin classes — use `Map<String,Object>` instead of custom DTOs for data exposed to templates
