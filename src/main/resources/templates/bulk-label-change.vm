@@ -29,67 +29,101 @@
     </div>
     #end
 
-    <form class="aui" method="POST">
-        #form_xsrfToken()
-        <fieldset>
-            <div class="field-group">
-                <label for="sourceLabel">Source label <span class="aui-icon icon-required">(required)</span></label>
-                <input class="text long-field" type="text" id="sourceLabel" name="sourceLabel"
-                       value="$!{sourceLabel}" placeholder="old-label" required
-                       autocomplete="off"/>
-                <div class="description">The label you want to replace.</div>
-            </div>
-
-            <div class="field-group">
-                <label for="targetLabel">Target label <span class="aui-icon icon-required">(required)</span></label>
-                <input class="text long-field" type="text" id="targetLabel" name="targetLabel"
-                       value="$!{targetLabel}" placeholder="new-label" required
-                       autocomplete="off"/>
-                <div class="description">The replacement label.</div>
-            </div>
-
-            <div class="field-group">
-                <label for="allSpaces">Spaces</label>
-                <div>
-                    <input type="checkbox" id="allSpaces" name="allSpaces" value="true"
-                           #if($action.allSpaces) checked #end
-                           onchange="document.getElementById('spaceSelect').disabled = this.checked;"/>
-                    <label for="allSpaces" style="display:inline; font-weight:normal;">All spaces</label>
-                </div>
-                <select class="multi-select long-field" id="spaceSelect" name="spaceKeys" multiple
-                        size="8" #if($action.allSpaces) disabled #end
-                        style="margin-top:8px;">
-                    #if($availableSpaces)
-                    #foreach($sp in $availableSpaces)
-                        <option value="$sp.key"
-                            #if($action.spaceKeys)
-                                #foreach($sk in $action.spaceKeys)
-                                    #if($sk == $sp.key) selected #end
-                                #end
-                            #end
-                        >$sp.name ($sp.key)</option>
-                    #end
-                    #end
-                </select>
-                <div class="description">Select specific spaces or apply to all. Hold Ctrl/Cmd to select multiple.</div>
-            </div>
-        </fieldset>
-
-        ## When allSpaces is unchecked, no value is sent — ensure we get false
-        <input type="hidden" name="allSpaces" value="false"/>
-
-        <div class="buttons-container">
-            <div class="buttons">
-                <button class="aui-button" type="submit" formaction="preview.action">
-                    Preview
-                </button>
-                <button class="aui-button aui-button-primary" type="submit" formaction="execute.action"
-                        onclick="return confirm('This will rename the label on all matching content you can edit. Continue?');">
-                    Apply
-                </button>
-            </div>
+    <fieldset class="aui">
+        <div class="field-group">
+            <label for="sourceLabel">Source label <span class="aui-icon icon-required">(required)</span></label>
+            <input class="text long-field" type="text" id="sourceLabel" name="sourceLabel"
+                   value="$!{sourceLabel}" placeholder="old-label"
+                   autocomplete="off"/>
+            <div class="description">The label you want to replace.</div>
         </div>
-    </form>
+
+        <div class="field-group">
+            <label for="targetLabel">Target label <span class="aui-icon icon-required">(required)</span></label>
+            <input class="text long-field" type="text" id="targetLabel" name="targetLabel"
+                   value="$!{targetLabel}" placeholder="new-label"
+                   autocomplete="off"/>
+            <div class="description">The replacement label.</div>
+        </div>
+
+        <div class="field-group">
+            <label for="allSpaces">Spaces</label>
+            <div>
+                <input type="checkbox" id="allSpaces" name="allSpaces" value="true"
+                       #if($action.allSpaces) checked #end
+                       onchange="document.getElementById('spaceSelect').disabled = this.checked;"/>
+                <label for="allSpaces" style="display:inline; font-weight:normal;">All spaces</label>
+            </div>
+            <select class="multi-select long-field" id="spaceSelect" name="spaceKeys" multiple
+                    size="8" #if($action.allSpaces) disabled #end
+                    style="margin-top:8px;">
+                #if($availableSpaces)
+                #foreach($sp in $availableSpaces)
+                    <option value="$sp.key"
+                        #if($action.spaceKeys)
+                            #foreach($sk in $action.spaceKeys)
+                                #if($sk == $sp.key) selected #end
+                            #end
+                        #end
+                    >$sp.name ($sp.key)</option>
+                #end
+                #end
+            </select>
+            <div class="description">Select specific spaces or apply to all. Hold Ctrl/Cmd to select multiple.</div>
+        </div>
+    </fieldset>
+
+    <div class="buttons-container">
+        <div class="buttons">
+            <form class="aui" method="POST" action="preview.action" style="display:inline"
+                  onsubmit="this.querySelector('[name=sourceLabel]').value=document.getElementById('sourceLabel').value; this.querySelector('[name=targetLabel]').value=document.getElementById('targetLabel').value;">
+                #form_xsrfToken()
+                <input type="hidden" name="sourceLabel" value=""/>
+                <input type="hidden" name="targetLabel" value=""/>
+                <input type="hidden" name="allSpaces" value="false"/>
+                <button class="aui-button" type="submit">Preview</button>
+            </form>
+            <form class="aui" method="POST" action="execute.action" style="display:inline"
+                  onsubmit="this.querySelector('[name=sourceLabel]').value=document.getElementById('sourceLabel').value; this.querySelector('[name=targetLabel]').value=document.getElementById('targetLabel').value; return confirm('This will rename the label on all matching content you can edit. Continue?');">
+                #form_xsrfToken()
+                <input type="hidden" name="sourceLabel" value=""/>
+                <input type="hidden" name="targetLabel" value=""/>
+                <input type="hidden" name="allSpaces" value="false"/>
+                <button class="aui-button aui-button-primary" type="submit">Apply</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Sync shared fields into both submit forms before submission
+        document.querySelectorAll('.buttons form').forEach(function(form) {
+            form.addEventListener('submit', function() {
+                var src = document.getElementById('sourceLabel').value;
+                var tgt = document.getElementById('targetLabel').value;
+                var all = document.getElementById('allSpaces').checked;
+                this.querySelector('[name=sourceLabel]').value = src;
+                this.querySelector('[name=targetLabel]').value = tgt;
+                this.querySelector('[name=allSpaces]').value = all ? 'true' : 'false';
+
+                // Remove old spaceKeys hidden inputs
+                this.querySelectorAll('[name=spaceKeys]').forEach(function(el) { el.remove(); });
+
+                // Copy selected spaces
+                if (!all) {
+                    var sel = document.getElementById('spaceSelect');
+                    for (var i = 0; i < sel.options.length; i++) {
+                        if (sel.options[i].selected) {
+                            var inp = document.createElement('input');
+                            inp.type = 'hidden';
+                            inp.name = 'spaceKeys';
+                            inp.value = sel.options[i].value;
+                            this.appendChild(inp);
+                        }
+                    }
+                }
+            });
+        });
+    </script>
 
 </div>
 
