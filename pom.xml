@@ -108,7 +108,7 @@
                     <productVersion>${confluence.version}</productVersion>
                     <productDataVersion>${confluence.version}</productDataVersion>
                     <enableQuickReload>true</enableQuickReload>
-                    <jvmArgs>-Xms1g -Xmx4g</jvmArgs>
+                    <jvmArgs>-Xms512m -Xmx2g</jvmArgs>
                     <instructions>
                         <Atlassian-Plugin-Key>${atlassian.plugin.key}</Atlassian-Plugin-Key>
                         <Spring-Context>*</Spring-Context>
