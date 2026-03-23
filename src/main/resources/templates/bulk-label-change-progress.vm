@@ -10,8 +10,8 @@
     <h1>Bulk Label Change – Processing</h1>
 
     <div class="aui-message aui-message-info" id="statusMessage">
-        <p>Renaming label <span class="aui-lozenge">$!{sourceLabel}</span>
-           &rarr; <span class="aui-lozenge aui-lozenge-success">$!{targetLabel}</span></p>
+        <p>Renaming label <span class="aui-lozenge">$generalUtil.htmlEncode($!{sourceLabel})</span>
+           &rarr; <span class="aui-lozenge aui-lozenge-success">$generalUtil.htmlEncode($!{targetLabel})</span></p>
     </div>
 
     <div style="margin: 24px 0;">
@@ -57,8 +57,6 @@
     var taskId = "$!{taskId}";
     var contextPath = "$req.contextPath";
     var baseUrl = contextPath + "/plugins/servlet/bulklabel/progress?taskId=" + encodeURIComponent(taskId);
-    var progressUrl = baseUrl;
-    var batchUrl = baseUrl + "&action=process";
     var processing = false;
     var tbody = document.getElementById("itemsBody");
 
@@ -66,7 +64,8 @@
         if (processing) return;
         processing = true;
         var xhr = new XMLHttpRequest();
-        xhr.open("GET", batchUrl, true);
+        xhr.open("POST", baseUrl, true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== 4) return;
             processing = false;
@@ -88,7 +87,7 @@
 
     function checkProgress() {
         var xhr = new XMLHttpRequest();
-        xhr.open("GET", progressUrl, true);
+        xhr.open("GET", baseUrl, true);
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== 4) return;
             if (xhr.status !== 200) {

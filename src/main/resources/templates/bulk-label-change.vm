@@ -16,7 +16,7 @@
     #if($action.hasActionErrors())
     <div class="aui-message aui-message-error">
         #foreach($error in $action.actionErrors)
-            <p>$error</p>
+            <p>$generalUtil.htmlEncode($error)</p>
         #end
     </div>
     #end
@@ -24,7 +24,7 @@
     #if($action.hasActionMessages())
     <div class="aui-message aui-message-info">
         #foreach($msg in $action.actionMessages)
-            <p>$msg</p>
+            <p>$generalUtil.htmlEncode($msg)</p>
         #end
     </div>
     #end
@@ -35,7 +35,7 @@
             <div class="field-group">
                 <label for="sourceLabel">Source label <span class="aui-icon icon-required">(required)</span></label>
                 <input class="text long-field" type="text" id="sourceLabel" name="sourceLabel"
-                       value="$!{sourceLabel}" placeholder="old-label"
+                       value="$!{generalUtil.htmlEncode($!{sourceLabel})}" placeholder="old-label"
                        autocomplete="off" required/>
                 <div class="description">The label you want to replace.</div>
             </div>
@@ -43,7 +43,7 @@
             <div class="field-group">
                 <label for="targetLabel">Target label <span class="aui-icon icon-required">(required)</span></label>
                 <input class="text long-field" type="text" id="targetLabel" name="targetLabel"
-                       value="$!{targetLabel}" placeholder="new-label"
+                       value="$!{generalUtil.htmlEncode($!{targetLabel})}" placeholder="new-label"
                        autocomplete="off" required/>
                 <div class="description">The replacement label.</div>
             </div>
@@ -61,13 +61,13 @@
                         style="margin-top:8px;">
                     #if($availableSpaces)
                     #foreach($sp in $availableSpaces)
-                        <option value="$sp.key"
+                        <option value="$generalUtil.htmlEncode($sp.key)"
                             #if($action.spaceKeys)
                                 #foreach($sk in $action.spaceKeys)
                                     #if($sk == $sp.key) selected #end
                                 #end
                             #end
-                        >$sp.name ($sp.key)</option>
+                        >$generalUtil.htmlEncode($sp.name) ($generalUtil.htmlEncode($sp.key))</option>
                     #end
                     #end
                 </select>

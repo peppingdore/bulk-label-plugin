@@ -15,7 +15,7 @@
         <div class="aui-message aui-message-info">
             <p>
                 Found <strong>$previewResult.totalCount</strong> item(s) with label
-                <span class="aui-lozenge">$!{sourceLabel}</span>.
+                <span class="aui-lozenge">$generalUtil.htmlEncode($!{sourceLabel})</span>.
             </p>
             <p>
                 You can edit <strong>$previewResult.editableCount</strong> of them.
@@ -29,8 +29,8 @@
         #if($previewResult.editableCount > 0)
             <p>
                 These items will have their label changed from
-                <span class="aui-lozenge">$!{sourceLabel}</span> →
-                <span class="aui-lozenge aui-lozenge-success">$!{targetLabel}</span>:
+                <span class="aui-lozenge">$generalUtil.htmlEncode($!{sourceLabel})</span> →
+                <span class="aui-lozenge aui-lozenge-success">$generalUtil.htmlEncode($!{targetLabel})</span>:
             </p>
 
             <table class="aui">
@@ -45,8 +45,8 @@
                     #foreach($item in $previewResult.items)
                     <tr>
                         <td>$item.type</td>
-                        <td>$!{item.spaceName} <span class="smalltext">($!{item.spaceKey})</span></td>
-                        <td><a href="$req.contextPath/pages/viewpage.action?pageId=$item.id">$item.title</a></td>
+                        <td>$generalUtil.htmlEncode($!{item.spaceName}) <span class="smalltext">($generalUtil.htmlEncode($!{item.spaceKey}))</span></td>
+                        <td><a href="$req.contextPath/pages/viewpage.action?pageId=$item.id">$generalUtil.htmlEncode($item.title)</a></td>
                     </tr>
                     #end
                 </tbody>
@@ -56,12 +56,12 @@
                 <div class="buttons">
                     <form class="aui" method="POST" action="execute.action" style="display:inline">
                         #form_xsrfToken()
-                        <input type="hidden" name="sourceLabel" value="$!{sourceLabel}"/>
-                        <input type="hidden" name="targetLabel" value="$!{targetLabel}"/>
+                        <input type="hidden" name="sourceLabel" value="$!{generalUtil.htmlEncode($!{sourceLabel})}"/>
+                        <input type="hidden" name="targetLabel" value="$!{generalUtil.htmlEncode($!{targetLabel})}"/>
                         <input type="hidden" name="allSpaces" value="$!{action.allSpaces}"/>
                         #if($action.spaceKeys)
                             #foreach($sk in $action.spaceKeys)
-                                <input type="hidden" name="spaceKeys" value="$sk"/>
+                                <input type="hidden" name="spaceKeys" value="$generalUtil.htmlEncode($sk)"/>
                             #end
                         #end
                         <button class="aui-button aui-button-primary" type="submit"

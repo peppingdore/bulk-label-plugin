@@ -26,8 +26,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
 /**
  * All data exposed to Velocity uses Map&lt;String,Object&gt; because
@@ -39,6 +41,8 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
     // In-memory task tracking (keyed by taskId) — package-visible for ProgressServlet
     static final ConcurrentHashMap<String, TaskProgress> TASKS = new ConcurrentHashMap<>();
+    private static final Pattern VALID_TASK_ID = Pattern.compile("^[0-9a-f\\-]+$");
+    private static final int MAX_ITEMS = 1000;
 
     private SpaceManager spaceManager;
 
@@ -83,6 +87,11 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
             loadSpaces();
             return ERROR;
         }
+        if (!isValidLabel(normalise(sourceLabel))) {
+            addActionError("Invalid source label. Labels may only contain lowercase letters, numbers, hyphens, underscores, and dots.");
+            loadSpaces();
+            return ERROR;
+        }
         if (targetLabel == null || targetLabel.isBlank()) {
             addActionError("Please enter a target label.");
             loadSpaces();
@@ -90,6 +99,14 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         }
         if (!isValidLabel(normalise(targetLabel))) {
             addActionError("Invalid target label. Labels may only contain lowercase letters, numbers, hyphens, underscores, and dots.");
+            loadSpaces();
+            return ERROR;
+        }
+
+        String src = normalise(sourceLabel);
+        String tgt = normalise(targetLabel);
+        if (src.equals(tgt)) {
+            addActionError("Source and target labels are identical.");
             loadSpaces();
             return ERROR;
         }
@@ -103,6 +120,9 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         if (editableCount == 0 && skippedCount == 0) {
             addActionMessage("No content found with label \u201c" + sourceLabel + "\u201d.");
         }
+        if ((boolean) previewResult.get("truncated")) {
+            addActionMessage("Warning: results are limited to " + MAX_ITEMS + " items. Some content with this label may not be shown.");
+        }
 
         return SUCCESS;
     }
@@ -111,7 +131,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     //  Execute – starts background task, redirects to progress page
     // ------------------------------------------------------------------
 
-    @RequireSecurityToken(false)
+    @RequireSecurityToken(true)
     public String doExecute() {
         if (!isAuthenticated()) {
             addActionError("You must be logged in.");
@@ -119,6 +139,11 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         }
         if (sourceLabel == null || sourceLabel.isBlank()) {
             addActionError("Please enter a source label.");
+            loadSpaces();
+            return ERROR;
+        }
+        if (!isValidLabel(normalise(sourceLabel))) {
+            addActionError("Invalid source label. Labels may only contain lowercase letters, numbers, hyphens, underscores, and dots.");
             loadSpaces();
             return ERROR;
         }
@@ -159,111 +184,12 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         }
 
         // Create task with collected IDs stored for batch processing
-        taskId = Long.toHexString(System.nanoTime());
-        TaskProgress task = new TaskProgress(itemIds.size(), src, tgt);
+        taskId = UUID.randomUUID().toString();
+        TaskProgress task = new TaskProgress(itemIds.size(), src, tgt, user.getKey().getStringValue());
         task.remainingIds.addAll(itemIds);
         TASKS.put(taskId, task);
 
         return SUCCESS;
-    }
-
-    private static final int BATCH_SIZE = 25;
-
-    // ------------------------------------------------------------------
-    //  Process a batch — called via AJAX from the progress page.
-    //  Runs in a proper request thread with Hibernate session.
-    // ------------------------------------------------------------------
-
-    @RequireSecurityToken(false)
-    public String doProcessBatch() throws Exception {
-        javax.servlet.http.HttpServletResponse response =
-            com.atlassian.confluence.struts.compat.ServletActionContext.getResponse();
-
-        if (taskId == null) return SUCCESS;
-        TaskProgress task = TASKS.get(taskId);
-        if (task == null || task.done) {
-            writeProgressJson(response, taskId);
-            return null;
-        }
-
-        String src = task.sourceLabel;
-        String tgt = task.targetLabel;
-
-        Label label = labelManager.getLabel(src);
-        if (label == null) {
-            // No more content with this label
-            int left = task.remainingIds.size();
-            task.processedCount.addAndGet(left);
-            task.remainingIds.clear();
-            task.done = true;
-            task.completedAt = System.currentTimeMillis();
-            return SUCCESS;
-        }
-
-        PartialList<ContentEntityObject> items = labelManager.getContentForLabel(0, BATCH_SIZE, label);
-        if (items == null || items.getList().isEmpty()) {
-            int left = task.remainingIds.size();
-            task.processedCount.addAndGet(left);
-            task.remainingIds.clear();
-            task.done = true;
-            task.completedAt = System.currentTimeMillis();
-            return SUCCESS;
-        }
-
-        boolean madeProgress = false;
-        for (ContentEntityObject item : items.getList()) {
-            if (!task.remainingIds.contains(item.getId())) continue;
-            task.remainingIds.remove(item.getId());
-            madeProgress = true;
-
-            try {
-                Label oldLabel = findLabelOnItem(item, src);
-                if (oldLabel != null) {
-                    labelManager.removeLabel(item, oldLabel);
-                }
-                labelManager.addLabel(item, new Label(tgt, Namespace.GLOBAL));
-                task.successCount.incrementAndGet();
-            } catch (Exception e) {
-                task.failCount.incrementAndGet();
-                log.error("Failed to relabel content id={}: {}", item.getId(), e.getMessage(), e);
-            }
-            task.processedCount.incrementAndGet();
-        }
-
-        if (!madeProgress) {
-            int left = task.remainingIds.size();
-            task.processedCount.addAndGet(left);
-            task.failCount.addAndGet(left);
-            task.remainingIds.clear();
-        }
-
-        if (task.remainingIds.isEmpty()) {
-            task.done = true;
-            task.completedAt = System.currentTimeMillis();
-        }
-
-        writeProgressJson(response, taskId);
-        return null;
-    }
-
-    private void writeProgressJson(javax.servlet.http.HttpServletResponse response, String tid) throws Exception {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        TaskProgress t = TASKS.get(tid);
-        String json;
-        if (t != null) {
-            int pct = t.totalCount > 0 ? (t.processedCount.get() * 100) / t.totalCount : 0;
-            json = "{\"taskId\":\"" + tid + "\""
-                 + ",\"totalCount\":" + t.totalCount
-                 + ",\"processedCount\":" + t.processedCount.get()
-                 + ",\"successCount\":" + t.successCount.get()
-                 + ",\"failCount\":" + t.failCount.get()
-                 + ",\"done\":" + t.done
-                 + ",\"percentComplete\":" + pct + "}";
-        } else {
-            json = "{\"error\":\"Task not found\",\"done\":true}";
-        }
-        response.getWriter().write(json);
     }
 
     // ------------------------------------------------------------------
@@ -307,9 +233,6 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
                 changeResult.put("changedContent", Collections.emptyList());
                 changeResult.put("sourceLabel", task.sourceLabel);
                 changeResult.put("targetLabel", task.targetLabel);
-                if (task.done) {
-                    TASKS.remove(taskId);
-                }
             }
         }
         return SUCCESS;
@@ -340,6 +263,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         result.put("skippedCount", skippedCount);
         result.put("editableCount", permitted.size());
         result.put("totalCount", permitted.size() + skippedCount);
+        result.put("truncated", allItems.size() >= MAX_ITEMS);
         return result;
     }
 
@@ -352,7 +276,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
                                                          PermissionManager pm) {
         Label label = lm.getLabel(srcLabel);
         if (label == null) return Collections.emptyList();
-        PartialList<ContentEntityObject> partialList = lm.getContentForLabel(0, 10000, label);
+        PartialList<ContentEntityObject> partialList = lm.getContentForLabel(0, MAX_ITEMS, label);
         if (partialList == null) return Collections.emptyList();
 
         List<Long> ids = new ArrayList<>();
@@ -436,19 +360,9 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     private List<ContentEntityObject> findAllByLabel(String labelName) {
         Label label = labelManager.getLabel(labelName);
         if (label == null) return Collections.emptyList();
-        PartialList<ContentEntityObject> partialList = labelManager.getContentForLabel(0, 10000, label);
+        PartialList<ContentEntityObject> partialList = labelManager.getContentForLabel(0, MAX_ITEMS, label);
         if (partialList == null) return Collections.emptyList();
         return new ArrayList<>(partialList.getList());
-    }
-
-    private Label findLabelOnItem(ContentEntityObject item, String labelName) {
-        for (Label l : item.getLabels()) {
-            if (l.getName().equalsIgnoreCase(labelName)
-                    && Namespace.GLOBAL.equals(l.getNamespace())) {
-                return l;
-            }
-        }
-        return null;
     }
 
     private String normalise(String raw) {
@@ -472,6 +386,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         volatile int totalCount;
         final String sourceLabel;
         final String targetLabel;
+        final String ownerUserKey;
         final Set<Long> remainingIds = Collections.synchronizedSet(new LinkedHashSet<>());
         final AtomicInteger processedCount = new AtomicInteger(0);
         final AtomicInteger successCount = new AtomicInteger(0);
@@ -483,15 +398,16 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         // Track how many items the client has already seen
         final AtomicInteger clientCursor = new AtomicInteger(0);
 
-        TaskProgress(int totalCount, String sourceLabel, String targetLabel) {
+        TaskProgress(int totalCount, String sourceLabel, String targetLabel, String ownerUserKey) {
             this.totalCount = totalCount;
             this.sourceLabel = sourceLabel;
             this.targetLabel = targetLabel;
+            this.ownerUserKey = ownerUserKey;
         }
     }
 
     /** Remove tasks that completed more than TASK_TTL_MS ago. */
-    private static void evictStaleTasks() {
+    static void evictStaleTasks() {
         long now = System.currentTimeMillis();
         TASKS.entrySet().removeIf(e -> {
             TaskProgress t = e.getValue();
@@ -539,7 +455,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
     public String getTaskId()                               { return taskId; }
     @ParameterSafe
-    public void setTaskId(String s)                         { this.taskId = s; }
+    public void setTaskId(String s)                         { this.taskId = (s != null && VALID_TASK_ID.matcher(s).matches()) ? s : null; }
 
     public List<Map<String, Object>> getAvailableSpaces()   { return availableSpaces; }
     public Map<String, Object> getPreviewResult()           { return previewResult; }

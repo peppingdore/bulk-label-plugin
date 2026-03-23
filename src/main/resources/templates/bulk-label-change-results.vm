@@ -14,8 +14,8 @@
         <div class="aui-message aui-message-success">
             <p>
                 Renamed label on <strong>$changeResult.successCount</strong> item(s):
-                <span class="aui-lozenge">$!{sourceLabel}</span> →
-                <span class="aui-lozenge aui-lozenge-success">$!{targetLabel}</span>
+                <span class="aui-lozenge">$generalUtil.htmlEncode($!{sourceLabel})</span> →
+                <span class="aui-lozenge aui-lozenge-success">$generalUtil.htmlEncode($!{targetLabel})</span>
             </p>
         </div>
 
@@ -51,8 +51,8 @@
                 #foreach($item in $changeResult.changedContent)
                 <tr>
                     <td>$item.type</td>
-                    <td>$!{item.spaceName} <span class="smalltext">($!{item.spaceKey})</span></td>
-                    <td><a href="$req.contextPath/pages/viewpage.action?pageId=$item.id">$item.title</a></td>
+                    <td>$generalUtil.htmlEncode($!{item.spaceName}) <span class="smalltext">($generalUtil.htmlEncode($!{item.spaceKey}))</span></td>
+                    <td><a href="$req.contextPath/pages/viewpage.action?pageId=$item.id">$generalUtil.htmlEncode($item.title)</a></td>
                 </tr>
                 #end
             </tbody>
