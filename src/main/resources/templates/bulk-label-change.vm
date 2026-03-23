@@ -94,12 +94,8 @@
         <input type="hidden" name="allSpaces" value="false"/>
 
         ## ── Actions ──
-        <div style="display:flex; gap:8px;">
-            <button class="aui-button" type="submit">Preview changes</button>
-            <button class="aui-button aui-button-primary" type="submit" id="applyBtn"
-                    onclick="if(confirm('This will rename the label on all matching content you can edit. Continue?')){document.getElementById('bulkLabelForm').action='execute.action';return true;}return false;">
-                Apply without preview
-            </button>
+        <div>
+            <button class="aui-button aui-button-primary" type="submit">Preview changes</button>
         </div>
     </form>
 
