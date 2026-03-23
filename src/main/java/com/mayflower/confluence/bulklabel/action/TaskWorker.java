@@ -12,7 +12,10 @@ import com.atlassian.spring.container.ContainerManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,12 +51,7 @@ public class TaskWorker implements Runnable {
                 if (task.done || task.remainingIds.isEmpty()) continue;
 
                 try {
-                    TransactionTemplate txTemplate =
-                            (TransactionTemplate) ContainerManager.getComponent("transactionTemplate");
-                    txTemplate.execute(() -> {
-                        processBatch(task);
-                        return null;
-                    });
+                    processBatch(task);
                     didWork = true;
                 } catch (Exception e) {
                     log.error("Unexpected error processing task {}: {}", entry.getKey(), e.getMessage(), e);
@@ -85,23 +83,25 @@ public class TaskWorker implements Runnable {
         log.info("Bulk label worker thread stopped");
     }
 
+    private TransactionTemplate getTxTemplate() {
+        return (TransactionTemplate) ContainerManager.getComponent("transactionTemplate");
+    }
+
     private void processBatch(BulkLabelChangeAction.TaskProgress task) {
-        LabelManager lm = (LabelManager) ContainerManager.getComponent("labelManager");
         String src = task.sourceLabel;
         String tgt = task.targetLabel;
 
-        Label label = lm.getLabel(src);
-        if (label == null) {
-            int left = task.remainingIds.size();
-            task.processedCount.addAndGet(left);
-            task.remainingIds.clear();
-            task.done = true;
-            task.completedAt = System.currentTimeMillis();
-            return;
-        }
+        // Fetch items in a read-only transaction
+        List<ContentEntityObject> items = getTxTemplate().execute(() -> {
+            LabelManager lm = (LabelManager) ContainerManager.getComponent("labelManager");
+            Label label = lm.getLabel(src);
+            if (label == null) return Collections.<ContentEntityObject>emptyList();
+            PartialList<ContentEntityObject> partial = lm.getContentForLabel(0, BATCH_SIZE, label);
+            if (partial == null) return Collections.<ContentEntityObject>emptyList();
+            return new ArrayList<>(partial.getList());
+        });
 
-        PartialList<ContentEntityObject> items = lm.getContentForLabel(0, BATCH_SIZE, label);
-        if (items == null || items.getList().isEmpty()) {
+        if (items.isEmpty()) {
             int left = task.remainingIds.size();
             task.processedCount.addAndGet(left);
             task.remainingIds.clear();
@@ -111,17 +111,23 @@ public class TaskWorker implements Runnable {
         }
 
         boolean madeProgress = false;
-        for (ContentEntityObject item : items.getList()) {
+        for (ContentEntityObject item : items) {
             if (!task.remainingIds.remove(item.getId())) continue;
             madeProgress = true;
 
+            // Each item gets its own transaction so one failure doesn't roll back others
             boolean success = false;
             try {
-                lm.addLabel(item, new Label(tgt, Namespace.GLOBAL));
-                Label oldLabel = findLabelOnItem(item, src);
-                if (oldLabel != null) {
-                    lm.removeLabel(item, oldLabel);
-                }
+                final ContentEntityObject currentItem = item;
+                getTxTemplate().execute(() -> {
+                    LabelManager lm = (LabelManager) ContainerManager.getComponent("labelManager");
+                    lm.addLabel(currentItem, new Label(tgt, Namespace.GLOBAL));
+                    Label oldLabel = findLabelOnItem(currentItem, src);
+                    if (oldLabel != null) {
+                        lm.removeLabel(currentItem, oldLabel);
+                    }
+                    return null;
+                });
                 task.successCount.incrementAndGet();
                 success = true;
             } catch (Exception e) {
