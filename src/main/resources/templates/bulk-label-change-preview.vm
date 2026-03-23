@@ -1,13 +1,11 @@
 <html>
 <head>
     <title>Bulk Label Change – Preview</title>
-    <meta name="decorator" content="atl.general"/>
+    <meta name="decorator" content="main"/>
 </head>
 <body>
 
 <div class="wiki-content" style="max-width:720px; margin:24px auto;">
-
-    <h1>Bulk Label Change – Preview</h1>
 
     #if($previewResult)
 
