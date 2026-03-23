@@ -7,6 +7,7 @@ import com.atlassian.confluence.labels.LabelManager;
 import com.atlassian.confluence.labels.Namespace;
 import com.atlassian.confluence.pages.BlogPost;
 import com.atlassian.confluence.pages.Page;
+import com.atlassian.sal.api.transaction.TransactionTemplate;
 import com.atlassian.spring.container.ContainerManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +48,12 @@ public class TaskWorker implements Runnable {
                 if (task.done || task.remainingIds.isEmpty()) continue;
 
                 try {
-                    processBatch(task);
+                    TransactionTemplate txTemplate =
+                            (TransactionTemplate) ContainerManager.getComponent("transactionTemplate");
+                    txTemplate.execute(() -> {
+                        processBatch(task);
+                        return null;
+                    });
                     didWork = true;
                 } catch (Exception e) {
                     log.error("Unexpected error processing task {}: {}", entry.getKey(), e.getMessage(), e);
