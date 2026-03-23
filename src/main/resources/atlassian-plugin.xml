@@ -22,7 +22,7 @@
         <condition class="com.atlassian.confluence.plugin.descriptor.web.conditions.user.UserLoggedInCondition"/>
     </web-item>
 
-    <!-- Servlet for progress polling and batch processing (returns JSON) -->
+    <!-- Servlet for progress polling (read-only, returns JSON) -->
     <servlet key="bulk-label-progress-servlet"
              name="Bulk Label Progress"
              class="com.mayflower.confluence.bulklabel.action.ProgressServlet">

@@ -1,40 +1,55 @@
 package com.mayflower.confluence.bulklabel.action;
 
-import com.atlassian.confluence.core.ContentEntityObject;
-import com.atlassian.confluence.core.PartialList;
-import com.atlassian.confluence.labels.Label;
-import com.atlassian.confluence.labels.LabelManager;
-import com.atlassian.confluence.labels.Namespace;
-import com.atlassian.confluence.pages.BlogPost;
-import com.atlassian.confluence.pages.Page;
-import com.atlassian.spring.container.ContainerManager;
-
 import com.atlassian.confluence.user.AuthenticatedUserThreadLocal;
 import com.atlassian.confluence.user.ConfluenceUser;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+/**
+ * Read-only servlet that returns task progress as JSON.
+ * Also manages the {@link TaskWorker} background thread lifecycle.
+ */
 public class ProgressServlet extends HttpServlet {
 
-    private static final Logger log = LoggerFactory.getLogger(ProgressServlet.class);
     private static final Pattern VALID_TASK_ID = Pattern.compile("^[0-9a-f\\-]+$");
-    private static final int BATCH_SIZE = 25;
 
-    private LabelManager getLabelManager() {
-        return (LabelManager) ContainerManager.getComponent("labelManager");
+    private TaskWorker worker;
+    private Thread workerThread;
+
+    @Override
+    public void init() {
+        worker = new TaskWorker();
+        workerThread = new Thread(worker, "bulk-label-worker");
+        workerThread.setDaemon(true);
+        workerThread.start();
     }
 
-    /** GET returns progress JSON (read-only, no side effects). */
+    @Override
+    public void destroy() {
+        if (worker != null) {
+            worker.shutdown();
+        }
+        if (workerThread != null) {
+            try {
+                // Let it finish the current batch — don't interrupt
+                workerThread.join(30_000);
+                if (workerThread.isAlive()) {
+                    workerThread.interrupt();
+                    workerThread.join(5_000);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                workerThread.interrupt();
+            }
+        }
+    }
+
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("application/json");
@@ -53,33 +68,6 @@ public class ProgressServlet extends HttpServlet {
         writeProgress(resp, req.getParameter("taskId"), task);
     }
 
-    /** POST processes a batch and returns progress JSON. */
-    @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
-
-        ConfluenceUser user = AuthenticatedUserThreadLocal.get();
-        if (user == null) {
-            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            resp.getWriter().write("{\"error\":\"Authentication required\",\"done\":true,\"items\":[]}");
-            return;
-        }
-
-        BulkLabelChangeAction.TaskProgress task = resolveTask(req, resp, user);
-        if (task == null) return;
-
-        if (!task.done) {
-            processBatch(task);
-        }
-
-        // Piggyback eviction on requests so stale tasks don't accumulate
-        BulkLabelChangeAction.evictStaleTasks();
-
-        writeProgress(resp, req.getParameter("taskId"), task);
-    }
-
-    /** Validate taskId and check that the calling user owns the task. Returns null if response was already written. */
     private BulkLabelChangeAction.TaskProgress resolveTask(HttpServletRequest req, HttpServletResponse resp,
                                                             ConfluenceUser user) throws IOException {
         String taskId = req.getParameter("taskId");
@@ -103,98 +91,10 @@ public class ProgressServlet extends HttpServlet {
         return task;
     }
 
-    private void processBatch(BulkLabelChangeAction.TaskProgress task) {
-        LabelManager lm = getLabelManager();
-        String src = task.sourceLabel;
-        String tgt = task.targetLabel;
-
-        Label label = lm.getLabel(src);
-        if (label == null) {
-            int left = task.remainingIds.size();
-            task.processedCount.addAndGet(left);
-            task.remainingIds.clear();
-            task.done = true;
-            task.completedAt = System.currentTimeMillis();
-            return;
-        }
-
-        PartialList<ContentEntityObject> items = lm.getContentForLabel(0, BATCH_SIZE, label);
-        if (items == null || items.getList().isEmpty()) {
-            int left = task.remainingIds.size();
-            task.processedCount.addAndGet(left);
-            task.remainingIds.clear();
-            task.done = true;
-            task.completedAt = System.currentTimeMillis();
-            return;
-        }
-
-        boolean madeProgress = false;
-        for (ContentEntityObject item : items.getList()) {
-            if (!task.remainingIds.remove(item.getId())) continue;
-            madeProgress = true;
-
-            boolean success = false;
-            try {
-                // Add target label first so the item is never left without either label
-                lm.addLabel(item, new Label(tgt, Namespace.GLOBAL));
-                Label oldLabel = findLabelOnItem(item, src);
-                if (oldLabel != null) {
-                    lm.removeLabel(item, oldLabel);
-                }
-                task.successCount.incrementAndGet();
-                success = true;
-            } catch (Exception e) {
-                log.error("Failed to rename label '{}' -> '{}' on content id={} title='{}'",
-                        src, tgt, item.getId(), item.getTitle(), e);
-                task.failCount.incrementAndGet();
-            }
-            task.processedCount.incrementAndGet();
-
-            Map<String, Object> itemResult = new HashMap<>();
-            itemResult.put("id", item.getId());
-            itemResult.put("title", item.getTitle());
-            itemResult.put("success", success);
-            if (item instanceof Page p) {
-                itemResult.put("spaceKey", p.getSpaceKey());
-                itemResult.put("type", "Page");
-            } else if (item instanceof BlogPost bp) {
-                itemResult.put("spaceKey", bp.getSpaceKey());
-                itemResult.put("type", "Blog Post");
-            } else {
-                itemResult.put("spaceKey", "");
-                itemResult.put("type", item.getType());
-            }
-            task.processedItems.add(itemResult);
-        }
-
-        if (!madeProgress) {
-            int left = task.remainingIds.size();
-            task.processedCount.addAndGet(left);
-            task.failCount.addAndGet(left);
-            task.remainingIds.clear();
-        }
-
-        if (task.remainingIds.isEmpty()) {
-            task.done = true;
-            task.completedAt = System.currentTimeMillis();
-        }
-    }
-
-    private Label findLabelOnItem(ContentEntityObject item, String labelName) {
-        for (Label l : item.getLabels()) {
-            if (l.getName().equalsIgnoreCase(labelName)
-                    && Namespace.GLOBAL.equals(l.getNamespace())) {
-                return l;
-            }
-        }
-        return null;
-    }
-
     private void writeProgress(HttpServletResponse resp, String taskId,
                                BulkLabelChangeAction.TaskProgress task) throws IOException {
         int pct = task.totalCount > 0 ? (task.processedCount.get() * 100) / task.totalCount : 0;
 
-        // Return only new items since last client cursor
         List<Map<String, Object>> allItems = task.processedItems;
         int newEnd = allItems.size();
         int cursor = task.clientCursor.getAndSet(newEnd);

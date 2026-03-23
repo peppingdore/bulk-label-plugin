@@ -57,53 +57,25 @@
     var taskId = "$!{taskId}";
     var contextPath = "$req.contextPath";
     var baseUrl = contextPath + "/plugins/servlet/bulklabel/progress?taskId=" + encodeURIComponent(taskId);
-    var processing = false;
     var tbody = document.getElementById("itemsBody");
 
-    function processBatch() {
-        if (processing) return;
-        processing = true;
+    function pollProgress() {
         var xhr = new XMLHttpRequest();
-        xhr.open("POST", baseUrl, true);
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.open("GET", baseUrl, true);
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== 4) return;
-            processing = false;
             if (xhr.status === 200) {
                 try {
                     var data = JSON.parse(xhr.responseText);
                     updateProgress(data);
                     appendItems(data.items || []);
                     if (!data.done) {
-                        setTimeout(processBatch, 100);
+                        setTimeout(pollProgress, 500);
                     }
                     return;
                 } catch(e) {}
             }
-            checkProgress();
-        };
-        xhr.send();
-    }
-
-    function checkProgress() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", baseUrl, true);
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== 4) return;
-            if (xhr.status !== 200) {
-                setTimeout(processBatch, 1000);
-                return;
-            }
-            try {
-                var data = JSON.parse(xhr.responseText);
-                updateProgress(data);
-                appendItems(data.items || []);
-                if (!data.done) {
-                    setTimeout(processBatch, 100);
-                }
-            } catch(e) {
-                setTimeout(processBatch, 1000);
-            }
+            setTimeout(pollProgress, 2000);
         };
         xhr.send();
     }
@@ -164,8 +136,8 @@
         }
     }
 
-    // Start processing
-    setTimeout(processBatch, 300);
+    // Poll for progress (processing happens server-side in background)
+    setTimeout(pollProgress, 500);
 })();
 </script>
 

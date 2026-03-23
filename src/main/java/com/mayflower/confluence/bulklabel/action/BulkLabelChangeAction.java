@@ -43,6 +43,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     static final ConcurrentHashMap<String, TaskProgress> TASKS = new ConcurrentHashMap<>();
     private static final Pattern VALID_TASK_ID = Pattern.compile("^[0-9a-f\\-]+$");
     private static final int MAX_ITEMS = 1000;
+    private static final int MAX_TASKS = 10;
 
     private SpaceManager spaceManager;
 
@@ -172,6 +173,12 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
         // Clean up old completed tasks
         evictStaleTasks();
+
+        if (TASKS.size() >= MAX_TASKS) {
+            addActionError("Too many tasks in progress. Please wait for existing tasks to complete.");
+            loadSpaces();
+            return ERROR;
+        }
 
         // Collect editable item IDs (runs in request's Hibernate context)
         List<Long> itemIds = collectEditableItemIdsBackground(src, user, filter,
@@ -380,13 +387,15 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     //  Task progress tracker
     // ------------------------------------------------------------------
 
-    private static final long TASK_TTL_MS = 10 * 60 * 1000; // 10 minutes
+    private static final long TASK_TTL_MS = 10 * 60 * 1000;           // 10 min for completed tasks
+    private static final long ABANDONED_TASK_TTL_MS = 30 * 60 * 1000; // 30 min for stuck tasks
 
     static class TaskProgress {
         volatile int totalCount;
         final String sourceLabel;
         final String targetLabel;
         final String ownerUserKey;
+        final long createdAt = System.currentTimeMillis();
         final Set<Long> remainingIds = Collections.synchronizedSet(new LinkedHashSet<>());
         final AtomicInteger processedCount = new AtomicInteger(0);
         final AtomicInteger successCount = new AtomicInteger(0);
@@ -406,12 +415,18 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         }
     }
 
-    /** Remove tasks that completed more than TASK_TTL_MS ago. */
+    /** Remove completed tasks after TTL and abandoned tasks after a longer TTL. */
     static void evictStaleTasks() {
         long now = System.currentTimeMillis();
         TASKS.entrySet().removeIf(e -> {
             TaskProgress t = e.getValue();
-            return t.done && t.completedAt > 0 && (now - t.completedAt) > TASK_TTL_MS;
+            if (t.done && t.completedAt > 0 && (now - t.completedAt) > TASK_TTL_MS) {
+                return true;
+            }
+            if (!t.done && (now - t.createdAt) > ABANDONED_TASK_TTL_MS) {
+                return true;
+            }
+            return false;
         });
     }
 
