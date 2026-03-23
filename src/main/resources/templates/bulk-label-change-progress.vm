@@ -1,0 +1,174 @@
+<html>
+<head>
+    <title>Bulk Label Change – Processing</title>
+    <meta name="decorator" content="main"/>
+</head>
+<body>
+
+<div class="wiki-content" style="max-width:900px; margin:24px auto;">
+
+    <h1>Bulk Label Change – Processing</h1>
+
+    <div class="aui-message aui-message-info" id="statusMessage">
+        <p>Renaming label <span class="aui-lozenge">$!{sourceLabel}</span>
+           &rarr; <span class="aui-lozenge aui-lozenge-success">$!{targetLabel}</span></p>
+    </div>
+
+    <div style="margin: 24px 0;">
+        <div style="background: #f4f5f7; border-radius: 4px; height: 24px; overflow: hidden; position: relative;">
+            <div id="progressBar"
+                 style="background: #0052cc; height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 4px;">
+            </div>
+        </div>
+        <p id="progressText" style="margin-top: 8px; color: #6b778c;">
+            Starting...
+        </p>
+    </div>
+
+    <table class="aui" id="itemsTable">
+        <thead>
+            <tr>
+                <th style="width:40px;">Status</th>
+                <th>Type</th>
+                <th>Space</th>
+                <th>Title</th>
+            </tr>
+        </thead>
+        <tbody id="itemsBody">
+        </tbody>
+    </table>
+
+    <div id="resultSection" style="display:none; margin-top: 24px;">
+        <div class="aui-message aui-message-success" id="resultSuccess" style="display:none;">
+            <p id="resultMessage"></p>
+        </div>
+        <div class="aui-message aui-message-warning" id="resultWarning" style="display:none;">
+            <p id="warningMessage"></p>
+        </div>
+        <div class="buttons-container" style="margin-top:16px;">
+            <a class="aui-button" href="change.action">Back to Bulk Label Change</a>
+        </div>
+    </div>
+
+</div>
+
+<script type="text/javascript">
+(function() {
+    var taskId = "$!{taskId}";
+    var contextPath = "$req.contextPath";
+    var baseUrl = contextPath + "/plugins/servlet/bulklabel/progress?taskId=" + encodeURIComponent(taskId);
+    var progressUrl = baseUrl;
+    var batchUrl = baseUrl + "&action=process";
+    var processing = false;
+    var tbody = document.getElementById("itemsBody");
+
+    function processBatch() {
+        if (processing) return;
+        processing = true;
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", batchUrl, true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== 4) return;
+            processing = false;
+            if (xhr.status === 200) {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    updateProgress(data);
+                    appendItems(data.items || []);
+                    if (!data.done) {
+                        setTimeout(processBatch, 100);
+                    }
+                    return;
+                } catch(e) {}
+            }
+            checkProgress();
+        };
+        xhr.send();
+    }
+
+    function checkProgress() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", progressUrl, true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState !== 4) return;
+            if (xhr.status !== 200) {
+                setTimeout(processBatch, 1000);
+                return;
+            }
+            try {
+                var data = JSON.parse(xhr.responseText);
+                updateProgress(data);
+                appendItems(data.items || []);
+                if (!data.done) {
+                    setTimeout(processBatch, 100);
+                }
+            } catch(e) {
+                setTimeout(processBatch, 1000);
+            }
+        };
+        xhr.send();
+    }
+
+    function appendItems(items) {
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            var tr = document.createElement("tr");
+            var icon = item.success
+                ? '<span style="color:#36b37e;font-size:16px;" title="Success">&#10003;</span>'
+                : '<span style="color:#de350b;font-size:16px;" title="Failed">&#10007;</span>';
+            tr.innerHTML =
+                '<td style="text-align:center;">' + icon + '</td>' +
+                '<td>' + escapeHtml(item.type) + '</td>' +
+                '<td>' + escapeHtml(item.spaceKey) + '</td>' +
+                '<td><a href="' + contextPath + '/pages/viewpage.action?pageId=' + item.id + '">' + escapeHtml(item.title) + '</a></td>';
+            if (!item.success) {
+                tr.style.backgroundColor = "#fff0f0";
+            }
+            tbody.appendChild(tr);
+        }
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement("div");
+        div.textContent = str || "";
+        return div.innerHTML;
+    }
+
+    function updateProgress(data) {
+        var pct = data.percentComplete || 0;
+        var bar = document.getElementById("progressBar");
+        var text = document.getElementById("progressText");
+
+        bar.style.width = pct + "%";
+        text.textContent = data.processedCount + " / " + data.totalCount +
+            " items processed (" + pct + "%) \u2014 " +
+            data.successCount + " succeeded, " + data.failCount + " failed";
+
+        if (data.done) {
+            bar.style.width = "100%";
+            bar.style.background = data.failCount > 0 ? "#ff991f" : "#36b37e";
+            text.textContent = "Complete: " + data.successCount + " succeeded, " +
+                data.failCount + " failed out of " + data.totalCount + " items.";
+
+            var resultSection = document.getElementById("resultSection");
+            resultSection.style.display = "block";
+
+            if (data.failCount === 0) {
+                document.getElementById("resultSuccess").style.display = "block";
+                document.getElementById("resultMessage").textContent =
+                    "Successfully renamed label on " + data.successCount + " item(s).";
+            } else {
+                document.getElementById("resultWarning").style.display = "block";
+                document.getElementById("warningMessage").textContent =
+                    data.successCount + " succeeded, " + data.failCount + " failed.";
+            }
+        }
+    }
+
+    // Start processing
+    setTimeout(processBatch, 300);
+})();
+</script>
+
+</body>
+</html>

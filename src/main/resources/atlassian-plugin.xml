@@ -1,11 +1,11 @@
-<atlassian-plugin key="com.example.confluence.bulk-label-change"
+<atlassian-plugin key="com.mayflower.confluence.bulk-label-change"
                   name="Bulk Label Change"
                   plugins-version="2">
 
     <plugin-info>
         <description>Rename labels in bulk across Confluence content you can edit.</description>
         <version>1.0.0</version>
-        <vendor name="Example" url="https://example.com"/>
+        <vendor name="Mayflower" url="https://mayflower.de"/>
         <param name="atlassian-data-center-status">compatible</param>
         <param name="atlassian-data-center-compatible">true</param>
         <param name="plugin-icon">images/pluginIcon.png</param>
@@ -22,13 +22,20 @@
         <condition class="com.atlassian.confluence.plugin.descriptor.web.conditions.user.UserLoggedInCondition"/>
     </web-item>
 
+    <!-- Servlet for progress polling and batch processing (returns JSON) -->
+    <servlet key="bulk-label-progress-servlet"
+             name="Bulk Label Progress"
+             class="com.mayflower.confluence.bulklabel.action.ProgressServlet">
+        <url-pattern>/bulklabel/progress</url-pattern>
+    </servlet>
+
     <!-- XWork actions (user-facing namespace) -->
     <xwork key="bulk-label-change-actions" name="Bulk Label Change Actions">
         <package name="bulk-label-change" extends="default" namespace="/plugins/bulklabel">
             <default-interceptor-ref name="defaultStack"/>
 
             <action name="change"
-                    class="com.example.confluence.bulklabel.action.BulkLabelChangeAction"
+                    class="com.mayflower.confluence.bulklabel.action.BulkLabelChangeAction"
                     method="doDefault">
                 <result name="input" type="velocity">/templates/bulk-label-change.vm</result>
                 <result name="success" type="velocity">/templates/bulk-label-change.vm</result>
@@ -36,7 +43,7 @@
             </action>
 
             <action name="preview"
-                    class="com.example.confluence.bulklabel.action.BulkLabelChangeAction"
+                    class="com.mayflower.confluence.bulklabel.action.BulkLabelChangeAction"
                     method="doPreview">
                 <result name="input" type="velocity">/templates/bulk-label-change.vm</result>
                 <result name="success" type="velocity">/templates/bulk-label-change-preview.vm</result>
@@ -44,11 +51,17 @@
             </action>
 
             <action name="execute"
-                    class="com.example.confluence.bulklabel.action.BulkLabelChangeAction"
+                    class="com.mayflower.confluence.bulklabel.action.BulkLabelChangeAction"
                     method="doExecute">
                 <result name="input" type="velocity">/templates/bulk-label-change.vm</result>
-                <result name="success" type="velocity">/templates/bulk-label-change-results.vm</result>
+                <result name="success" type="velocity">/templates/bulk-label-change-progress.vm</result>
                 <result name="error" type="velocity">/templates/bulk-label-change.vm</result>
+            </action>
+
+            <action name="results"
+                    class="com.mayflower.confluence.bulklabel.action.BulkLabelChangeAction"
+                    method="doResults">
+                <result name="success" type="velocity">/templates/bulk-label-change-results.vm</result>
             </action>
         </package>
     </xwork>

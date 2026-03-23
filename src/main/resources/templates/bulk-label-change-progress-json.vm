@@ -1,0 +1,1 @@
+#set($decorator = "none")#set($helper = $action.helper)$!{response.setContentType("application/json")}$!{action.progressJson}

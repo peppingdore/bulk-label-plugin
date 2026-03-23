@@ -36,7 +36,7 @@
                 <label for="sourceLabel">Source label <span class="aui-icon icon-required">(required)</span></label>
                 <input class="text long-field" type="text" id="sourceLabel" name="sourceLabel"
                        value="$!{sourceLabel}" placeholder="old-label"
-                       autocomplete="off"/>
+                       autocomplete="off" required/>
                 <div class="description">The label you want to replace.</div>
             </div>
 
@@ -44,7 +44,7 @@
                 <label for="targetLabel">Target label <span class="aui-icon icon-required">(required)</span></label>
                 <input class="text long-field" type="text" id="targetLabel" name="targetLabel"
                        value="$!{targetLabel}" placeholder="new-label"
-                       autocomplete="off"/>
+                       autocomplete="off" required/>
                 <div class="description">The replacement label.</div>
             </div>
 
