@@ -7,6 +7,7 @@ import com.atlassian.confluence.labels.LabelManager;
 import com.atlassian.confluence.labels.Namespace;
 import com.atlassian.confluence.pages.BlogPost;
 import com.atlassian.confluence.pages.Page;
+import com.atlassian.confluence.pages.PageManager;
 import com.atlassian.sal.api.transaction.TransactionTemplate;
 import com.atlassian.spring.container.ContainerManager;
 import org.slf4j.Logger;
@@ -87,21 +88,40 @@ public class TaskWorker implements Runnable {
         return (TransactionTemplate) ContainerManager.getComponent("transactionTemplate");
     }
 
+    /** Snapshot of a content item — only IDs and metadata, no Hibernate entity. */
+    private static class ItemInfo {
+        final long id;
+        final String title;
+        final String spaceKey;
+        final String type;
+        ItemInfo(long id, String title, String spaceKey, String type) {
+            this.id = id; this.title = title; this.spaceKey = spaceKey; this.type = type;
+        }
+    }
+
     private void processBatch(BulkLabelChangeAction.TaskProgress task) {
         String src = task.sourceLabel;
         String tgt = task.targetLabel;
 
-        // Fetch items in a read-only transaction
-        List<ContentEntityObject> items = getTxTemplate().execute(() -> {
+        // Collect IDs + metadata in one transaction, then discard the Hibernate entities
+        List<ItemInfo> batch = getTxTemplate().execute(() -> {
             LabelManager lm = (LabelManager) ContainerManager.getComponent("labelManager");
             Label label = lm.getLabel(src);
-            if (label == null) return Collections.<ContentEntityObject>emptyList();
+            if (label == null) return Collections.<ItemInfo>emptyList();
             PartialList<ContentEntityObject> partial = lm.getContentForLabel(0, BATCH_SIZE, label);
-            if (partial == null) return Collections.<ContentEntityObject>emptyList();
-            return new ArrayList<>(partial.getList());
+            if (partial == null) return Collections.<ItemInfo>emptyList();
+            List<ItemInfo> result = new ArrayList<>();
+            for (ContentEntityObject ceo : partial.getList()) {
+                String spaceKey = "";
+                String type = ceo.getType();
+                if (ceo instanceof Page p) { spaceKey = p.getSpaceKey(); type = "Page"; }
+                else if (ceo instanceof BlogPost bp) { spaceKey = bp.getSpaceKey(); type = "Blog Post"; }
+                result.add(new ItemInfo(ceo.getId(), ceo.getTitle(), spaceKey, type));
+            }
+            return result;
         });
 
-        if (items.isEmpty()) {
+        if (batch.isEmpty()) {
             int left = task.remainingIds.size();
             task.processedCount.addAndGet(left);
             task.remainingIds.clear();
@@ -111,20 +131,22 @@ public class TaskWorker implements Runnable {
         }
 
         boolean madeProgress = false;
-        for (ContentEntityObject item : items) {
-            if (!task.remainingIds.remove(item.getId())) continue;
+        for (ItemInfo info : batch) {
+            if (!task.remainingIds.remove(info.id)) continue;
             madeProgress = true;
 
-            // Each item gets its own transaction so one failure doesn't roll back others
+            // Each item gets its own transaction with a freshly loaded entity
             boolean success = false;
             try {
-                final ContentEntityObject currentItem = item;
                 getTxTemplate().execute(() -> {
+                    PageManager pm = (PageManager) ContainerManager.getComponent("pageManager");
+                    ContentEntityObject fresh = pm.getAbstractPage(info.id);
+                    if (fresh == null) throw new RuntimeException("Content " + info.id + " not found");
                     LabelManager lm = (LabelManager) ContainerManager.getComponent("labelManager");
-                    lm.addLabel(currentItem, new Label(tgt, Namespace.GLOBAL));
-                    Label oldLabel = findLabelOnItem(currentItem, src);
+                    lm.addLabel(fresh, new Label(tgt, Namespace.GLOBAL));
+                    Label oldLabel = findLabelOnItem(fresh, src);
                     if (oldLabel != null) {
-                        lm.removeLabel(currentItem, oldLabel);
+                        lm.removeLabel(fresh, oldLabel);
                     }
                     return null;
                 });
@@ -132,25 +154,17 @@ public class TaskWorker implements Runnable {
                 success = true;
             } catch (Exception e) {
                 log.error("Failed to rename label '{}' -> '{}' on content id={} title='{}'",
-                        src, tgt, item.getId(), item.getTitle(), e);
+                        src, tgt, info.id, info.title, e);
                 task.failCount.incrementAndGet();
             }
             task.processedCount.incrementAndGet();
 
             Map<String, Object> itemResult = new HashMap<>();
-            itemResult.put("id", item.getId());
-            itemResult.put("title", item.getTitle());
+            itemResult.put("id", info.id);
+            itemResult.put("title", info.title);
+            itemResult.put("spaceKey", info.spaceKey);
+            itemResult.put("type", info.type);
             itemResult.put("success", success);
-            if (item instanceof Page p) {
-                itemResult.put("spaceKey", p.getSpaceKey());
-                itemResult.put("type", "Page");
-            } else if (item instanceof BlogPost bp) {
-                itemResult.put("spaceKey", bp.getSpaceKey());
-                itemResult.put("type", "Blog Post");
-            } else {
-                itemResult.put("spaceKey", "");
-                itemResult.put("type", item.getType());
-            }
             task.processedItems.add(itemResult);
         }
 
