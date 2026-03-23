@@ -51,7 +51,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     private String sourceLabel;
     private String targetLabel;
     private String[] spaceKeys;
-    private boolean allSpaces = true;
+    private boolean allSpaces = false;
     private String taskId;
 
     // Results exposed to Velocity (all Maps, no custom DTOs)
