@@ -1,13 +1,16 @@
 <html>
 <head>
     <title>Bulk Label Change</title>
-    <meta name="decorator" content="main"/>
+    <meta name="decorator" content="atl.general"/>
 </head>
 <body>
 
 <div class="wiki-content" style="max-width:760px; margin:32px auto;">
 
-    <p style="color:#6b778c; margin:0 0 24px 0;">Rename a label across all pages and blog posts you have permission to edit.</p>
+    <div style="margin-bottom:32px;">
+        <h1 style="margin-bottom:4px;">Bulk Label Change</h1>
+        <p style="color:#6b778c; margin:0;">Rename a label across all pages and blog posts you have permission to edit.</p>
+    </div>
 
     #if($action.hasActionErrors())
     <div class="aui-message aui-message-error" style="margin-bottom:16px;">

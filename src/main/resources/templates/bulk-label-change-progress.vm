@@ -1,11 +1,13 @@
 <html>
 <head>
     <title>Bulk Label Change – Processing</title>
-    <meta name="decorator" content="main"/>
+    <meta name="decorator" content="atl.general"/>
 </head>
 <body>
 
 <div class="wiki-content" style="max-width:900px; margin:24px auto;">
+
+    <h1>Bulk Label Change – Processing</h1>
 
     <div class="aui-message aui-message-info" id="statusMessage">
         <p>Renaming label <span class="aui-lozenge">$!{sourceLabel}</span>

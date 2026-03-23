@@ -1,11 +1,13 @@
 <html>
 <head>
     <title>Bulk Label Change – Results</title>
-    <meta name="decorator" content="main"/>
+    <meta name="decorator" content="atl.general"/>
 </head>
 <body>
 
 <div class="wiki-content" style="max-width:720px; margin:24px auto;">
+
+    <h1>Bulk Label Change – Results</h1>
 
     #if($changeResult)
 
