@@ -5,16 +5,15 @@
 </head>
 <body>
 
-<div class="wiki-content" style="max-width:720px; margin:24px auto;">
+<div class="wiki-content" style="max-width:760px; margin:32px auto;">
 
-    <h1>Bulk Label Change</h1>
-    <p>
-        Rename a label across all pages and blog posts you have permission to edit.
-        Content you cannot edit will be left untouched.
-    </p>
+    <div style="margin-bottom:32px;">
+        <h1 style="margin-bottom:4px;">Bulk Label Change</h1>
+        <p style="color:#6b778c; margin:0;">Rename a label across all pages and blog posts you have permission to edit.</p>
+    </div>
 
     #if($action.hasActionErrors())
-    <div class="aui-message aui-message-error">
+    <div class="aui-message aui-message-error" style="margin-bottom:16px;">
         #foreach($error in $action.actionErrors)
             <p>$error</p>
         #end
@@ -22,7 +21,7 @@
     #end
 
     #if($action.hasActionMessages())
-    <div class="aui-message aui-message-info">
+    <div class="aui-message aui-message-info" style="margin-bottom:16px;">
         #foreach($msg in $action.actionMessages)
             <p>$msg</p>
         #end
@@ -31,60 +30,76 @@
 
     <form id="bulkLabelForm" class="aui" method="POST" action="preview.action">
         #form_xsrfToken()
-        <fieldset>
-            <div class="field-group">
-                <label for="sourceLabel">Source label <span class="aui-icon icon-required">(required)</span></label>
-                <input class="text long-field" type="text" id="sourceLabel" name="sourceLabel"
-                       value="$!{sourceLabel}" placeholder="old-label"
-                       autocomplete="off" required/>
-                <div class="description">The label you want to replace.</div>
-            </div>
 
-            <div class="field-group">
-                <label for="targetLabel">Target label <span class="aui-icon icon-required">(required)</span></label>
-                <input class="text long-field" type="text" id="targetLabel" name="targetLabel"
-                       value="$!{targetLabel}" placeholder="new-label"
-                       autocomplete="off" required/>
-                <div class="description">The replacement label.</div>
+        ## ── Label inputs side by side ──
+        <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:24px;">
+            <div style="flex:1; min-width:200px;">
+                <label for="sourceLabel" style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">
+                    From label <span class="aui-icon icon-required">(required)</span>
+                </label>
+                <input class="text" type="text" id="sourceLabel" name="sourceLabel"
+                       value="$!{sourceLabel}" placeholder="e.g. old-label"
+                       autocomplete="off" required
+                       style="width:100%; box-sizing:border-box;"/>
             </div>
+            <div style="padding-bottom:8px; color:#6b778c; font-size:22px; flex-shrink:0;">&rarr;</div>
+            <div style="flex:1; min-width:200px;">
+                <label for="targetLabel" style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">
+                    To label <span class="aui-icon icon-required">(required)</span>
+                </label>
+                <input class="text" type="text" id="targetLabel" name="targetLabel"
+                       value="$!{targetLabel}" placeholder="e.g. new-label"
+                       autocomplete="off" required
+                       style="width:100%; box-sizing:border-box;"/>
+            </div>
+        </div>
 
-            <div class="field-group">
-                <label for="allSpaces">Spaces</label>
-                <div>
+        ## ── Scope section ──
+        <div style="border:1px solid #dfe1e6; border-radius:3px; padding:16px; margin-bottom:24px; background:#fafbfc;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-weight:600; font-size:14px;">Scope</span>
+                <label style="font-weight:normal; cursor:pointer; font-size:13px; color:#6b778c;">
                     <input type="checkbox" id="allSpaces" name="allSpaces" value="true"
                            #if($action.allSpaces) checked #end
-                           onchange="document.getElementById('spaceSelect').disabled = this.checked;"/>
-                    <label for="allSpaces" style="display:inline; font-weight:normal;">All spaces</label>
-                </div>
-                <select class="multi-select long-field" id="spaceSelect" name="spaceKeys" multiple
-                        size="8" #if($action.allSpaces) disabled #end
-                        style="margin-top:8px;">
-                    #if($availableSpaces)
-                    #foreach($sp in $availableSpaces)
-                        <option value="$sp.key"
-                            #if($action.spaceKeys)
-                                #foreach($sk in $action.spaceKeys)
-                                    #if($sk == $sp.key) selected #end
-                                #end
-                            #end
-                        >$sp.name ($sp.key)</option>
-                    #end
-                    #end
-                </select>
-                <div class="description">Select specific spaces or apply to all. Hold Ctrl/Cmd to select multiple.</div>
+                           onchange="document.getElementById('spaceSelect').style.display = this.checked ? 'none' : 'block';
+                                     document.getElementById('scopeHint').textContent = this.checked ? 'All spaces will be searched.' : 'Select one or more spaces below.';"
+                           style="vertical-align:middle; margin-right:4px;"/>
+                    All spaces
+                </label>
             </div>
-        </fieldset>
+            <p id="scopeHint" style="color:#6b778c; font-size:13px; margin:0 0 8px 0;">
+                #if($action.allSpaces)
+                    All spaces will be searched.
+                #else
+                    Select one or more spaces below.
+                #end
+            </p>
+            <select class="multi-select" id="spaceSelect" name="spaceKeys" multiple
+                    size="6"
+                    style="width:100%; box-sizing:border-box; #if($action.allSpaces) display:none; #end">
+                #if($availableSpaces)
+                #foreach($sp in $availableSpaces)
+                    <option value="$sp.key"
+                        #if($action.spaceKeys)
+                            #foreach($sk in $action.spaceKeys)
+                                #if($sk == $sp.key) selected #end
+                            #end
+                        #end
+                    >$sp.name ($sp.key)</option>
+                #end
+                #end
+            </select>
+        </div>
 
         <input type="hidden" name="allSpaces" value="false"/>
 
-        <div class="buttons-container">
-            <div class="buttons">
-                <button class="aui-button" type="submit">Preview</button>
-                <button class="aui-button aui-button-primary" type="submit" id="applyBtn"
-                        onclick="if(confirm('This will rename the label on all matching content you can edit. Continue?')){document.getElementById('bulkLabelForm').action='execute.action';return true;}return false;">
-                    Apply
-                </button>
-            </div>
+        ## ── Actions ──
+        <div style="display:flex; gap:8px;">
+            <button class="aui-button" type="submit">Preview changes</button>
+            <button class="aui-button aui-button-primary" type="submit" id="applyBtn"
+                    onclick="if(confirm('This will rename the label on all matching content you can edit. Continue?')){document.getElementById('bulkLabelForm').action='execute.action';return true;}return false;">
+                Apply without preview
+            </button>
         </div>
     </form>
 
