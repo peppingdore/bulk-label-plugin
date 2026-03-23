@@ -55,7 +55,7 @@
         </div>
 
         ## ── Scope section ──
-        <div style="border:1px solid #dfe1e6; border-radius:3px; padding:16px; margin-bottom:24px; background:#fafbfc;">
+        <div style="border:1px solid #dfe1e6; border-radius:3px; padding:16px; margin-bottom:24px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
                 <span style="font-weight:600; font-size:14px;">Scope</span>
                 <label style="font-weight:normal; cursor:pointer; font-size:13px; color:#6b778c;">
