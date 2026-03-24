@@ -195,6 +195,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         TaskProgress task = new TaskProgress(itemIds.size(), src, tgt, user.getKey().getStringValue());
         task.remainingIds.addAll(itemIds);
         TASKS.put(taskId, task);
+        TaskWorker.ensureRunning();
 
         return SUCCESS;
     }

@@ -20,75 +20,105 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Single background daemon thread that processes bulk label rename tasks.
- * Started/stopped from {@link ProgressServlet} init/destroy.
+ * Background worker that processes bulk label rename tasks.
+ * A single thread is spawned on demand when work is queued and exits
+ * automatically when all tasks are complete. Thread-safe: only one
+ * worker thread runs at a time.
  */
 public class TaskWorker implements Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(TaskWorker.class);
     private static final int BATCH_SIZE = 25;
-    private static final long POLL_INTERVAL_MS = 200;
-    private static final long EVICT_INTERVAL_MS = 60_000;
+    private static final long IDLE_SLEEP_MS = 200;
 
-    private volatile boolean running = true;
+    private static final Object LOCK = new Object();
+    private static Thread workerThread;
 
-    void shutdown() {
-        running = false;
+    /** Called after adding a task to TASKS. Starts the worker if not already running. */
+    static void ensureRunning() {
+        synchronized (LOCK) {
+            if (workerThread != null && workerThread.isAlive()) return;
+            TaskWorker worker = new TaskWorker();
+            workerThread = new Thread(worker, "bulk-label-worker");
+            workerThread.setDaemon(true);
+            workerThread.start();
+        }
+    }
+
+    /** Wait for the worker to finish current work (called on plugin unload). */
+    static void awaitShutdown(long timeoutMs) {
+        Thread t;
+        synchronized (LOCK) {
+            t = workerThread;
+        }
+        if (t != null && t.isAlive()) {
+            try {
+                t.join(timeoutMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     @Override
     public void run() {
         log.info("Bulk label worker thread started");
-        long lastEvict = System.currentTimeMillis();
 
-        while (running) {
-            boolean didWork = false;
+        try {
+            while (true) {
+                boolean didWork = false;
 
-            for (Map.Entry<String, BulkLabelChangeAction.TaskProgress> entry :
-                    BulkLabelChangeAction.TASKS.entrySet()) {
-                if (!running) break;
+                for (Map.Entry<String, BulkLabelChangeAction.TaskProgress> entry :
+                        BulkLabelChangeAction.TASKS.entrySet()) {
 
-                BulkLabelChangeAction.TaskProgress task = entry.getValue();
-                if (task.done || task.remainingIds.isEmpty()) continue;
+                    BulkLabelChangeAction.TaskProgress task = entry.getValue();
+                    if (task.done || task.remainingIds.isEmpty()) continue;
 
-                try {
-                    processBatch(task);
-                    didWork = true;
-                } catch (Exception e) {
-                    log.error("Unexpected error processing task {}: {}", entry.getKey(), e.getMessage(), e);
-                    int left = task.remainingIds.size();
-                    task.processedCount.addAndGet(left);
-                    task.failCount.addAndGet(left);
-                    task.remainingIds.clear();
-                    task.done = true;
-                    task.completedAt = System.currentTimeMillis();
+                    try {
+                        processBatch(task);
+                        didWork = true;
+                    } catch (Exception e) {
+                        log.error("Unexpected error processing task {}: {}", entry.getKey(), e.getMessage(), e);
+                        int left = task.remainingIds.size();
+                        task.processedCount.addAndGet(left);
+                        task.failCount.addAndGet(left);
+                        task.remainingIds.clear();
+                        task.done = true;
+                        task.completedAt = System.currentTimeMillis();
+                    }
                 }
-            }
 
-            long now = System.currentTimeMillis();
-            if (now - lastEvict > EVICT_INTERVAL_MS) {
                 BulkLabelChangeAction.evictStaleTasks();
-                lastEvict = now;
-            }
 
-            if (!didWork && running) {
-                try {
-                    Thread.sleep(POLL_INTERVAL_MS);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
+                // If no work was done, check if any tasks are still active
+                if (!didWork) {
+                    boolean hasActiveTasks = false;
+                    for (BulkLabelChangeAction.TaskProgress task : BulkLabelChangeAction.TASKS.values()) {
+                        if (!task.done && !task.remainingIds.isEmpty()) {
+                            hasActiveTasks = true;
+                            break;
+                        }
+                    }
+                    if (!hasActiveTasks) break; // exit thread — no more work
+
+                    // Active tasks exist but batch returned nothing useful — brief pause
+                    Thread.sleep(IDLE_SLEEP_MS);
                 }
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
 
-        log.info("Bulk label worker thread stopped");
+        synchronized (LOCK) {
+            workerThread = null;
+        }
+        log.info("Bulk label worker thread exiting — no more tasks");
     }
 
     private TransactionTemplate getTxTemplate() {
         return (TransactionTemplate) ContainerManager.getComponent("transactionTemplate");
     }
 
-    /** Snapshot of a content item — only IDs and metadata, no Hibernate entity. */
     private static class ItemInfo {
         final long id;
         final String title;
@@ -103,7 +133,6 @@ public class TaskWorker implements Runnable {
         String src = task.sourceLabel;
         String tgt = task.targetLabel;
 
-        // Collect IDs + metadata in one transaction, then discard the Hibernate entities
         List<ItemInfo> batch = getTxTemplate().execute(() -> {
             LabelManager lm = (LabelManager) ContainerManager.getComponent("labelManager");
             Label label = lm.getLabel(src);
@@ -135,7 +164,6 @@ public class TaskWorker implements Runnable {
             if (!task.remainingIds.remove(info.id)) continue;
             madeProgress = true;
 
-            // Each item gets its own transaction with a freshly loaded entity
             boolean success = false;
             try {
                 getTxTemplate().execute(() -> {

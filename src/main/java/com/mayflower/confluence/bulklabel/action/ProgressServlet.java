@@ -13,41 +13,16 @@ import java.util.regex.Pattern;
 
 /**
  * Read-only servlet that returns task progress as JSON.
- * Also manages the {@link TaskWorker} background thread lifecycle.
+ * The worker thread is managed by {@link TaskWorker} on demand.
  */
 public class ProgressServlet extends HttpServlet {
 
     private static final Pattern VALID_TASK_ID = Pattern.compile("^[0-9a-f\\-]+$");
 
-    private TaskWorker worker;
-    private Thread workerThread;
-
-    @Override
-    public void init() {
-        worker = new TaskWorker();
-        workerThread = new Thread(worker, "bulk-label-worker");
-        workerThread.setDaemon(true);
-        workerThread.start();
-    }
-
     @Override
     public void destroy() {
-        if (worker != null) {
-            worker.shutdown();
-        }
-        if (workerThread != null) {
-            try {
-                // Let it finish the current batch — don't interrupt
-                workerThread.join(30_000);
-                if (workerThread.isAlive()) {
-                    workerThread.interrupt();
-                    workerThread.join(5_000);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                workerThread.interrupt();
-            }
-        }
+        // Let worker finish current batch on plugin unload
+        TaskWorker.awaitShutdown(30_000);
     }
 
     @Override
