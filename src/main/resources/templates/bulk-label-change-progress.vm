@@ -58,6 +58,7 @@
     var contextPath = "$req.contextPath";
     var baseUrl = contextPath + "/plugins/servlet/bulklabel/progress?taskId=" + encodeURIComponent(taskId);
     var tbody = document.getElementById("itemsBody");
+    var seenIds = {};
 
     function pollProgress() {
         var xhr = new XMLHttpRequest();
@@ -83,6 +84,8 @@
     function appendItems(items) {
         for (var i = 0; i < items.length; i++) {
             var item = items[i];
+            if (seenIds[item.id]) continue;
+            seenIds[item.id] = true;
             var tr = document.createElement("tr");
             var icon = item.success
                 ? '<span style="color:#36b37e;font-size:16px;" title="Success">&#10003;</span>'
