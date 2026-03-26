@@ -340,6 +340,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         globalSpaces = new ArrayList<>();
         personalSpaces = new ArrayList<>();
         for (Space s : spaces) {
+            if (s.isArchived()) continue;
             Map<String, Object> map = new HashMap<>();
             map.put("key", s.getKey());
             map.put("name", s.getName());
