@@ -285,6 +285,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
         result.put("editableCount", permitted.size());
         result.put("totalCount", permitted.size() + skippedCount);
         result.put("truncated", allItems.size() >= MAX_ITEMS);
+        result.put("limit", MAX_ITEMS);
         return result;
     }
 
