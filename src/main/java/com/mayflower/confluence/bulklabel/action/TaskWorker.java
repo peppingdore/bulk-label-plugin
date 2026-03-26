@@ -156,27 +156,32 @@ public class TaskWorker implements Runnable {
             if (!task.remainingIds.remove(info.id)) continue;
             madeProgress = true;
 
-            boolean success = false;
+            // Check if the source label is still present (may have been removed by another task)
+            Boolean renamed = null;
             try {
-                getTxTemplate().execute(() -> {
+                renamed = getTxTemplate().execute(() -> {
                     PageManager pm = (PageManager) ContainerManager.getComponent("pageManager");
                     ContentEntityObject fresh = pm.getAbstractPage(info.id);
-                    if (fresh == null) throw new RuntimeException("Content " + info.id + " not found");
+                    if (fresh == null) return null;
+                    Label oldLabel = findLabelOnItem(fresh, src);
+                    if (oldLabel == null) return null; // already renamed by another task
                     LabelManager lm = (LabelManager) ContainerManager.getComponent("labelManager");
                     lm.addLabel(fresh, new Label(tgt, Namespace.GLOBAL));
-                    Label oldLabel = findLabelOnItem(fresh, src);
-                    if (oldLabel != null) {
-                        lm.removeLabel(fresh, oldLabel);
-                    }
-                    return null;
+                    lm.removeLabel(fresh, oldLabel);
+                    return Boolean.TRUE;
                 });
-                task.successCount.incrementAndGet();
-                success = true;
             } catch (Exception e) {
                 log.error("Failed to rename label '{}' -> '{}' on content id={} title='{}'",
                         src, tgt, info.id, info.title, e);
-                task.failCount.incrementAndGet();
             }
+
+            if (renamed == null) {
+                // Item was already processed or not found — skip without reporting
+                task.processedCount.incrementAndGet();
+                continue;
+            }
+
+            task.successCount.incrementAndGet();
             task.processedCount.incrementAndGet();
 
             Map<String, Object> itemResult = new HashMap<>();
@@ -184,7 +189,7 @@ public class TaskWorker implements Runnable {
             itemResult.put("title", info.title);
             itemResult.put("spaceKey", info.spaceKey);
             itemResult.put("type", info.type);
-            itemResult.put("success", success);
+            itemResult.put("success", true);
             task.processedItems.add(itemResult);
         }
 
