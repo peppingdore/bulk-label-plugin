@@ -343,7 +343,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
             Map<String, Object> map = new HashMap<>();
             map.put("key", s.getKey());
             map.put("name", s.getName());
-            if (com.atlassian.confluence.spaces.SpaceType.PERSONAL.equals(s.getType())) {
+            if (s.getKey().startsWith("~")) {
                 personalSpaces.add(map);
             } else {
                 globalSpaces.add(map);
