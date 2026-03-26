@@ -42,7 +42,7 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     // In-memory task tracking (keyed by taskId) — package-visible for ProgressServlet
     static final ConcurrentHashMap<String, TaskProgress> TASKS = new ConcurrentHashMap<>();
     private static final Pattern VALID_TASK_ID = Pattern.compile("^[0-9a-f\\-]+$");
-    private static final int MAX_ITEMS = 1000;
+    private static final int MAX_ITEMS = 500;
     private static final int MAX_TASKS = 10;
 
     private SpaceManager spaceManager;

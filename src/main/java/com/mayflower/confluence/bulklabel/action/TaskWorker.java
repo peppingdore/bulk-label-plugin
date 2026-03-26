@@ -66,19 +66,26 @@ public class TaskWorker implements Runnable {
 
         try {
             while (true) {
-                boolean didWork = false;
-
+                // Find the next active task (process one at a time to avoid conflicts)
+                Map.Entry<String, BulkLabelChangeAction.TaskProgress> active = null;
                 for (Map.Entry<String, BulkLabelChangeAction.TaskProgress> entry :
                         BulkLabelChangeAction.TASKS.entrySet()) {
-
                     BulkLabelChangeAction.TaskProgress task = entry.getValue();
-                    if (task.done || task.remainingIds.isEmpty()) continue;
+                    if (!task.done && !task.remainingIds.isEmpty()) {
+                        active = entry;
+                        break;
+                    }
+                }
 
+                if (active == null) break; // no more work — exit thread
+
+                // Process this task to completion
+                BulkLabelChangeAction.TaskProgress task = active.getValue();
+                while (!task.done && !task.remainingIds.isEmpty()) {
                     try {
                         processBatch(task);
-                        didWork = true;
                     } catch (Exception e) {
-                        log.error("Unexpected error processing task {}: {}", entry.getKey(), e.getMessage(), e);
+                        log.error("Unexpected error processing task {}: {}", active.getKey(), e.getMessage(), e);
                         int left = task.remainingIds.size();
                         task.processedCount.addAndGet(left);
                         task.failCount.addAndGet(left);
@@ -89,31 +96,16 @@ public class TaskWorker implements Runnable {
                 }
 
                 BulkLabelChangeAction.evictStaleTasks();
-
-                // If no work was done, check if any tasks are still active
-                if (!didWork) {
-                    boolean hasActiveTasks = false;
-                    for (BulkLabelChangeAction.TaskProgress task : BulkLabelChangeAction.TASKS.values()) {
-                        if (!task.done && !task.remainingIds.isEmpty()) {
-                            hasActiveTasks = true;
-                            break;
-                        }
-                    }
-                    if (!hasActiveTasks) break; // exit thread — no more work
-
-                    // Active tasks exist but batch returned nothing useful — brief pause
-                    Thread.sleep(IDLE_SLEEP_MS);
-                }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        } finally {
+            synchronized (LOCK) {
+                workerThread = null;
+            }
+            log.info("Bulk label worker thread exiting — no more tasks");
         }
-
-        synchronized (LOCK) {
-            workerThread = null;
-        }
-        log.info("Bulk label worker thread exiting — no more tasks");
     }
+
+
 
     private TransactionTemplate getTxTemplate() {
         return (TransactionTemplate) ContainerManager.getComponent("transactionTemplate");

@@ -9,6 +9,14 @@
 
     <h1>Bulk Label Change – Preview</h1>
 
+    #if($action.hasActionMessages())
+    <div class="aui-message aui-message-warning" style="margin-bottom:16px;">
+        #foreach($msg in $action.actionMessages)
+            <p>$msg</p>
+        #end
+    </div>
+    #end
+
     #if($previewResult)
 
         ## Summary
