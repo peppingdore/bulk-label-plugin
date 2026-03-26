@@ -113,8 +113,14 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
             return ERROR;
         }
 
-        ConfluenceUser user = getAuthenticatedUser();
         Set<String> filter = resolveSpaceFilter();
+        if (filter.isEmpty()) {
+            addActionError("Please select at least one space.");
+            loadSpaces();
+            return ERROR;
+        }
+
+        ConfluenceUser user = getAuthenticatedUser();
         previewResult = doPreviewWork(sourceLabel, user, filter);
 
         int editableCount = (int) previewResult.get("editableCount");
@@ -169,8 +175,14 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
             return ERROR;
         }
 
-        ConfluenceUser user = getAuthenticatedUser();
         Set<String> filter = resolveSpaceFilter();
+        if (filter.isEmpty()) {
+            addActionError("Please select at least one space.");
+            loadSpaces();
+            return ERROR;
+        }
+
+        ConfluenceUser user = getAuthenticatedUser();
 
         // Clean up old completed tasks
         evictStaleTasks();

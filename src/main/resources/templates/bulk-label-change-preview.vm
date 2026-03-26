@@ -32,14 +32,12 @@
                     <em>skipped</em> because you don't have edit permission.
                 #end
             </p>
+            #if($action.spaceKeys && $action.spaceKeys.size() > 0)
             <p>
-                #if($action.allSpaces)
-                    Scope: <strong>all spaces</strong>
-                #elseif($action.spaceKeys && $action.spaceKeys.size() > 0)
-                    Scope: <strong>$action.spaceKeys.size()</strong> space(s) &mdash;
-                    #foreach($sk in $action.spaceKeys)#if($foreach.index > 0), #end<span class="aui-lozenge aui-lozenge-subtle">$sk</span>#end
-                #end
+                Scope: <strong>$action.spaceKeys.size()</strong> space(s) &mdash;
+                #foreach($sk in $action.spaceKeys)#if($foreach.index > 0), #end<span class="aui-lozenge aui-lozenge-subtle">$sk</span>#end
             </p>
+            #end
         </div>
 
         #if($previewResult.editableCount > 0)
