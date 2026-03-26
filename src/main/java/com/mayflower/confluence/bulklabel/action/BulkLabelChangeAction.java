@@ -57,7 +57,8 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     // Results exposed to Velocity (all Maps, no custom DTOs)
     private Map<String, Object> previewResult;
     private Map<String, Object> changeResult;
-    private List<Map<String, Object>> availableSpaces;
+    private List<Map<String, Object>> globalSpaces;
+    private List<Map<String, Object>> personalSpaces;
 
     // ------------------------------------------------------------------
     //  Entry point – render the form
@@ -336,14 +337,20 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
 
     private void loadSpaces() {
         List<Space> spaces = spaceManager.getAllSpaces();
-        availableSpaces = new ArrayList<>();
+        globalSpaces = new ArrayList<>();
+        personalSpaces = new ArrayList<>();
         for (Space s : spaces) {
             Map<String, Object> map = new HashMap<>();
             map.put("key", s.getKey());
             map.put("name", s.getName());
-            availableSpaces.add(map);
+            if (com.atlassian.confluence.spaces.SpaceType.PERSONAL.equals(s.getType())) {
+                personalSpaces.add(map);
+            } else {
+                globalSpaces.add(map);
+            }
         }
-        availableSpaces.sort((a, b) -> ((String) a.get("name")).compareToIgnoreCase((String) b.get("name")));
+        globalSpaces.sort((a, b) -> ((String) a.get("name")).compareToIgnoreCase((String) b.get("name")));
+        personalSpaces.sort((a, b) -> ((String) a.get("name")).compareToIgnoreCase((String) b.get("name")));
     }
 
     private Set<String> resolveSpaceFilter() {
@@ -473,7 +480,8 @@ public class BulkLabelChangeAction extends ConfluenceActionSupport {
     @ParameterSafe
     public void setTaskId(String s)                         { this.taskId = (s != null && VALID_TASK_ID.matcher(s).matches()) ? s : null; }
 
-    public List<Map<String, Object>> getAvailableSpaces()   { return availableSpaces; }
+    public List<Map<String, Object>> getGlobalSpaces()      { return globalSpaces; }
+    public List<Map<String, Object>> getPersonalSpaces()    { return personalSpaces; }
     public Map<String, Object> getPreviewResult()           { return previewResult; }
     public Map<String, Object> getChangeResult()            { return changeResult; }
 }

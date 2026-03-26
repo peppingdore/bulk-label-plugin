@@ -56,39 +56,61 @@
 
         ## ── Scope section ──
         <div style="border:1px solid #dfe1e6; border-radius:3px; padding:16px; margin-bottom:24px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-weight:600; font-size:14px;">Scope</span>
-                <label style="font-weight:normal; cursor:pointer; font-size:13px; color:#6b778c;">
-                    <input type="checkbox" id="allSpaces" name="allSpaces" value="true"
-                           #if($action.allSpaces) checked #end
-                           onchange="document.getElementById('spaceSelect').style.display = this.checked ? 'none' : 'block';
-                                     document.getElementById('scopeHint').textContent = this.checked ? 'All spaces will be searched.' : 'Select one or more spaces below.';"
-                           style="vertical-align:middle; margin-right:4px;"/>
-                    All spaces
-                </label>
-            </div>
-            <p id="scopeHint" style="color:#6b778c; font-size:13px; margin:0 0 8px 0;">
-                #if($action.allSpaces)
-                    All spaces will be searched.
-                #else
-                    Select one or more spaces below.
-                #end
-            </p>
-            <select class="multi-select" id="spaceSelect" name="spaceKeys" multiple
-                    size="6"
-                    style="width:100%; box-sizing:border-box; #if($action.allSpaces) display:none; #end">
-                #if($availableSpaces)
-                #foreach($sp in $availableSpaces)
-                    <option value="$sp.key"
-                        #if($action.spaceKeys)
-                            #foreach($sk in $action.spaceKeys)
-                                #if($sk == $sp.key) selected #end
+            <span style="font-weight:600; font-size:14px; display:block; margin-bottom:12px;">Scope</span>
+
+            ## ── Global spaces ──
+            <div style="margin-bottom:16px;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                    <span style="font-weight:600; font-size:13px;">Spaces</span>
+                    <label style="font-weight:normal; cursor:pointer; font-size:13px; color:#6b778c;">
+                        <input type="checkbox" id="allGlobal" value="1"
+                               onchange="toggleSelectAll('globalSpaceSelect', this.checked)"
+                               style="vertical-align:middle; margin-right:4px;"/>
+                        Select all
+                    </label>
+                </div>
+                <select class="multi-select" id="globalSpaceSelect" name="spaceKeys" multiple
+                        size="5" style="width:100%; box-sizing:border-box;">
+                    #if($globalSpaces)
+                    #foreach($sp in $globalSpaces)
+                        <option value="$sp.key"
+                            #if($action.spaceKeys)
+                                #foreach($sk in $action.spaceKeys)
+                                    #if($sk == $sp.key) selected #end
+                                #end
                             #end
-                        #end
-                    >$sp.name ($sp.key)</option>
-                #end
-                #end
-            </select>
+                        >$sp.name ($sp.key)</option>
+                    #end
+                    #end
+                </select>
+            </div>
+
+            ## ── Personal spaces ──
+            <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                    <span style="font-weight:600; font-size:13px;">Personal spaces</span>
+                    <label style="font-weight:normal; cursor:pointer; font-size:13px; color:#6b778c;">
+                        <input type="checkbox" id="allPersonal" value="1"
+                               onchange="toggleSelectAll('personalSpaceSelect', this.checked)"
+                               style="vertical-align:middle; margin-right:4px;"/>
+                        Select all
+                    </label>
+                </div>
+                <select class="multi-select" id="personalSpaceSelect" name="spaceKeys" multiple
+                        size="5" style="width:100%; box-sizing:border-box;">
+                    #if($personalSpaces)
+                    #foreach($sp in $personalSpaces)
+                        <option value="$sp.key"
+                            #if($action.spaceKeys)
+                                #foreach($sk in $action.spaceKeys)
+                                    #if($sk == $sp.key) selected #end
+                                #end
+                            #end
+                        >$sp.name ($sp.key)</option>
+                    #end
+                    #end
+                </select>
+            </div>
         </div>
 
         <input type="hidden" name="allSpaces" value="false"/>
@@ -100,6 +122,15 @@
     </form>
 
 </div>
+
+<script type="text/javascript">
+function toggleSelectAll(selectId, checked) {
+    var sel = document.getElementById(selectId);
+    for (var i = 0; i < sel.options.length; i++) {
+        sel.options[i].selected = checked;
+    }
+}
+</script>
 
 </body>
 </html>
